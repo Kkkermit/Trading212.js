@@ -1,0 +1,111 @@
+---
+title: Key concepts
+description: The few ideas you need before using the library, explained for beginners.
+---
+
+import { Aside, Card, CardGrid } from "@astrojs/starlight/components";
+
+Five minutes here saves an hour later. Each section is one idea the rest of the docs rely on.
+
+## Demo and live
+
+Trading 212 runs two separate copies of its API:
+
+| Environment | What it is                         | Use it for                           |
+| ----------- | ---------------------------------- | ------------------------------------ |
+| `demo`      | Paper trading with practice money  | Building and testing your code       |
+| `live`      | Your real account, with real money | Running code you have already tested |
+
+You always choose one, and the library never guesses. "Production" or "real" means `live`; "paper", "practice" or
+"sandbox" means `demo`. A live client starts with trading switched off, so it can read your account but cannot place
+an order until you pass `trading: "enabled"`.
+
+## API keys and permissions
+
+A key is made in the Trading 212 app under **Settings > API (Beta)**, and comes in two parts: the **API key** and the
+**API secret**. Treat both like a password. A key works in exactly one environment: one made while the app is in
+practice mode only works on demo.
+
+Each key has a list of **permissions** (Trading 212 calls them scopes), such as `account`, `portfolio` or
+`orders:execute`. A call the key is not allowed to make fails with `MissingScopeError`, which names the missing
+permission. [API coverage](/Trading212.js/reference/api-coverage/) lists which method needs which.
+
+## Tickers
+
+Trading 212 names every instrument with its own **ticker**, such as `AAPL_US_EQ` for Apple on a US exchange. They are
+not the symbols you see elsewhere, so look them up rather than writing them by hand:
+
+```ts
+const apple = await t212.instruments.resolve("Apple"); // apple.ticker is "AAPL_US_EQ"
+```
+
+## `async` and `await`
+
+Every method that talks to Trading 212 returns a **promise**: the answer arrives later, over the network. Put `await`
+in front of the call to wait for it:
+
+```ts
+const summary = await t212.account.summary(); // waits, then gives you the summary
+console.log(summary.totalValue);
+```
+
+`await` works at the top level of an ES module (a `.mjs` file, or a project with `"type": "module"`) and inside any
+`async function`. In CommonJS, wrap your code in an `async function main() { … }` and call `main()`.
+
+## Errors are classes
+
+When something goes wrong, the library **throws** an error you can catch with `try` and `catch`. Each kind of
+problem has its own class, so you can tell them apart, and every error has a `hint` saying what to do:
+
+```ts
+try {
+	await t212.orders.buy({ ticker: "AAPL_US_EQ", quantity: 1 });
+} catch (error) {
+	if (error instanceof OrderRejectedError)
+		console.log(error.hint); // "Not enough free cash for this buy…"
+	else throw error;
+}
+```
+
+[Errors](/Trading212.js/guides/errors/) lists every one.
+
+## Rate limits
+
+Trading 212 limits how often each endpoint may be called, per account: the account summary once every 5 seconds,
+positions once a second, and so on. The client keeps to these limits for you by **waiting** before a call when it has
+to, so your code does not need to. A loop that asks for positions ten times takes about ten seconds rather than
+failing. [Rate limits](/Trading212.js/guides/rate-limits/) explains the options.
+
+## When money is involved
+
+Three rules keep your account safe, and the client follows all of them for you:
+
+<CardGrid>
+	<Card title="Orders are never retried" icon="warning">
+		If an order times out, sending it again could buy twice. Reads are retried automatically; orders, cancellations
+		and pie changes never are.
+	</Card>
+	<Card title="Unknown is not failed" icon="information">
+		When an order may or may not have gone through, you get `OrderOutcomeUnknownError`, never a plain failure. Check
+		`orders.list()` before trying again.
+	</Card>
+	<Card title="Preview first" icon="magnifier">
+		`{ dryRun: true }` builds the exact request and returns it without sending anything, even on live.
+	</Card>
+</CardGrid>
+
+<Aside type="tip">
+	The [fake Trading 212](/Trading212.js/guides/testing/) lets you try every one of these, offline, before you touch
+	demo.
+</Aside>
+
+## TypeScript or JavaScript
+
+The library is written in TypeScript and ships its types, so editors such as VS Code show every option and field as
+you type, in JavaScript too. You do not need TypeScript to use it. Every example in these docs has both a
+**TypeScript** and a **JavaScript** tab.
+
+## Where next
+
+- [Getting started](/Trading212.js/getting-started/) to install it and run your first script.
+- [Your first program](/Trading212.js/tutorial/) to build something real, step by step.

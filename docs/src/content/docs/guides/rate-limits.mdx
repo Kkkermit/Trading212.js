@@ -3,6 +3,8 @@ title: Rate limits
 description: Per-endpoint budgets, the pace, burst and off modes, and sharing a budget between clients.
 ---
 
+import Example from "../../../components/Example.astro";
+
 Trading 212 limits every endpoint separately, **per account**: every key and every IP address on the account shares
 one budget. The [API coverage](/Trading212.js/reference/api-coverage/) page lists each endpoint's limit;
 `ENDPOINTS` holds the same table at run time, and `t212.rateLimits()` shows what the last response headers said.
@@ -16,6 +18,11 @@ one budget. The [API coverage](/Trading212.js/reference/api-coverage/) page list
 | `off`            | Sends immediately; a read that meets a 429 is still retried after the reset                 |
 
 With `pace`, a second `positions.list()` within the same second waits rather than failing.
+
+<Example name="rate-limits" />
+
+`t212.rateLimits()` returns, for every endpoint, `{ limit, periodMs, remaining, resetAt }`: the documented limit and
+period, corrected by the headers, and what the last response said was left and when it resets.
 
 In every mode the client corrects its budget from each response's `x-ratelimit-*` headers, so spending by another
 program on the same account counts as soon as it shows. If a call would have to wait longer than

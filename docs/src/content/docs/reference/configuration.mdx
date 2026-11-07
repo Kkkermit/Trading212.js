@@ -4,6 +4,7 @@ description: Every client option, the environment variables fromEnv reads, and t
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
 
 ## Client options
 
@@ -64,6 +65,8 @@ Every method takes a last argument of call options:
 | ----------- | ----------------------------------------------------------------------------------------------------------- |
 | `signal`    | An `AbortSignal` that cancels the call. A trade aborted after it was sent throws `OrderOutcomeUnknownError` |
 | `timeoutMs` | This call's timeout, in place of the client's                                                               |
+
+<Example name="cancel-a-call" />
 
 The instrument and exchange lists take `signal` and `refresh` but not `timeoutMs`: one download is shared by every
 caller, so it uses the client's own timeout. `orders.waitFor()` and `reports.waitFor()` read `timeoutMs` as the

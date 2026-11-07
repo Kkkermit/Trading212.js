@@ -83,7 +83,7 @@
 		"build": "tsup",
 		"check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run check:package && npm run size",
 		"check:package": "publint --strict && attw --pack . --profile node16",
-		"typecheck": "tsc --noEmit && tsc --noEmit -p examples",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p examples && tsc --noEmit -p docs/src/examples",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
 		"format": "prettier --write .",

@@ -1,0 +1,71 @@
+---
+title: The client
+description: The Trading212 class, how to create it, and its properties and methods.
+---
+
+import Example from "../../../components/Example.astro";
+
+`Trading212` is the one class you create. It holds your key, keeps to the rate limits, and gives you every part of
+the API as a property.
+
+## Creating a client
+
+```ts
+new Trading212(options: Trading212Options)
+Trading212.fromEnv(overrides?: Partial<Trading212Options>, env?: Record<string, string | undefined>)
+```
+
+`new Trading212()` takes the options directly; `environment`, `apiKey` and `apiSecret` are required, and every other
+option is listed in [Configuration](/Trading212.js/reference/configuration/). `Trading212.fromEnv()` reads the
+environment, credentials from `T212_ENV`, `T212_API_KEY` and `T212_API_SECRET`, and takes any other option as
+`overrides`. Pass `env` to read from an object instead of `process.env`.
+
+Both check the options at once and throw `ConfigurationError`, naming the option at fault, before any request is
+made.
+
+<Example name="configuration" file="client" />
+
+## Properties
+
+| Property      | Holds                                                                                |
+| ------------- | ------------------------------------------------------------------------------------ |
+| `environment` | `"demo"` or `"live"`                                                                 |
+| `trading`     | `"enabled"` or `"disabled"`: whether this client may place orders                    |
+| `account`     | [The account summary](/Trading212.js/reference/methods/#account)                     |
+| `positions`   | [Open positions](/Trading212.js/reference/methods/#positions)                        |
+| `portfolio`   | [The portfolio snapshot](/Trading212.js/reference/methods/#portfolio)                |
+| `instruments` | [Everything you can trade](/Trading212.js/reference/methods/#instruments)            |
+| `exchanges`   | [Exchanges and market hours](/Trading212.js/reference/methods/#exchanges)            |
+| `orders`      | [Placing and managing orders](/Trading212.js/reference/methods/#orders)              |
+| `history`     | [Past orders, dividends and transactions](/Trading212.js/reference/methods/#history) |
+| `reports`     | [CSV exports](/Trading212.js/reference/methods/#reports)                             |
+| `pies`        | [Pies](/Trading212.js/reference/methods/#pies), deprecated by Trading 212            |
+
+## Methods
+
+### `verify()`
+
+```ts
+verify(options?: CallOptions): Promise<{ environment: Environment; accountId?: number; currency?: string; trading: "enabled" | "disabled" }>
+```
+
+Checks the key works with one request, and says which account it belongs to. A wrong key, or one made for the other
+environment, fails here with `AuthenticationError` and a hint saying which. Needs the `account` permission.
+
+### `rateLimits()`
+
+```ts
+rateLimits(): Record<EndpointId, { limit: number; periodMs: number; remaining?: number; resetAt?: Date }>
+```
+
+What is known about every endpoint's budget: its limit and period, and what the last response's headers said was left
+and when it resets. Every client using the same key in the same process shares these budgets.
+
+### `toJSON()`
+
+```ts
+toJSON(): { environment: Environment; trading: "enabled" | "disabled"; origin: string }
+```
+
+What `JSON.stringify(t212)` gives. The key and secret are kept in private fields, so printing, logging or inspecting
+the client never shows them.

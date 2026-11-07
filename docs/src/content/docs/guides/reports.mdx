@@ -1,31 +1,42 @@
 ---
 title: CSV reports
-description: Exporting your history as CSV in one call, step by step, and parsing it.
+description: Exporting your history as CSV in one call or step by step, and parsing it.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
 
-## In one call
+| Method                     | Does                                                  | Limit    |
+| -------------------------- | ----------------------------------------------------- | -------- |
+| `reports.export(request)`  | Requests a report, waits for it and downloads the CSV | combined |
+| `reports.request(request)` | Asks Trading 212 to build a report; returns its ID    | 1 / 30 s |
+| `reports.list()`           | Every report you have asked for, with its status      | 1 / min  |
+| `reports.waitFor(id)`      | Checks a report until it is finished                  | 1 / min  |
+| `reports.download(report)` | Downloads a finished report's CSV text                | none     |
 
-```ts
-const { report, csv } = await t212.reports.export({ from: "2026-01-01", to: "2026-12-31" });
-```
+The spec names no permission for these endpoints.
 
-`export()` requests the report, waits for it and downloads it. Listing reports is limited to once a minute, so it
-takes at least a minute. Its `timeoutMs` (default 10 minutes) bounds the wait; the request and the download keep
-their own timeouts.
+## Export and parse
+
+<Example name="export-csv" />
+
+`export()` takes at least a minute, because listing reports is limited to once a minute. Its `timeoutMs` (default
+10 minutes) bounds the wait; the request and the download keep their own timeouts.
+
+A request takes `from` and `to` (a `Date` or a date string) and `include`, with `dividends`, `interest`, `orders` and
+`transactions` all included unless you say otherwise.
 
 ## Step by step
 
 ```ts
-const id = await t212.reports.request({ from, to, include: { interest: false } });
+const id = await t212.reports.request({ from: "2026-01-01", to: "2026-06-30" });
 const ready = await t212.reports.waitFor(id, { onStatus: (report) => console.log(report.status) });
 const text = await t212.reports.download(ready);
 ```
 
-`include` takes `dividends`, `interest`, `orders` and `transactions`, all included unless you say otherwise.
-`reports.list()` shows every report you have asked for. The download goes to a signed link **without** your
-credentials, and a link expires, so fetch a fresh one with `reports.list()` if a download is refused.
+`waitFor()` takes `timeoutMs`, `intervalMs` (default 60 s) and `onStatus`, called on each check. It throws if the
+report failed or was cancelled. The download goes to a signed link **without** your credentials, and links expire,
+so fetch a fresh one with `reports.list()` if a download is refused.
 
 <Aside type="caution" title="Demo">
 	The spec does not say whether demo offers CSV exports. This library expects demo to refuse them, and turns that
@@ -35,15 +46,14 @@ credentials, and a link expires, so fetch a fresh one with `reports.list()` if a
 
 ## Parsing the CSV
 
-The parser is in its own entry point, so the client stays small:
+The parser lives in its own entry point, `@kkkermit/trading212.js/csv`, so the client stays small:
 
-```ts
-import { csvNumber, parseCsv } from "@kkkermit/trading212.js/csv";
+| Function             | Returns                                                                         |
+| -------------------- | ------------------------------------------------------------------------------- |
+| `parseCsv(text)`     | One object per line, keyed by column name; every value a string                 |
+| `parseCsvRows(text)` | Every line as an array of strings, the header included                          |
+| `csvNumber(value)`   | A number from `1234.56`, `1,234.56` or `-0.5`, or `undefined` for anything else |
 
-for (const row of parseCsv(text)) console.log(row.Action, row.Ticker, csvNumber(row.Total));
-```
-
-`parseCsv()` returns one object per line, keyed by column name, with every value a string. It handles quoted
-fields, doubled quotes, commas and line breaks inside quotes, either line ending, and a leading byte-order mark.
-`csvNumber()` reads `1234.56`, `1,234.56` or `-0.5`, and returns `undefined` for anything else, including a decimal
-comma.
+Both parsers handle quoted fields, doubled quotes, commas and line breaks inside quotes, either line ending, and a
+leading byte-order mark. `csvNumber()` refuses a decimal comma such as `1,5`, because Trading 212 writes decimals with
+a full stop.

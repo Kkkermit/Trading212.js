@@ -4,8 +4,15 @@ description: From nothing to a working script in six steps, starting with a try-
 ---
 
 import { Aside, Steps, TabItem, Tabs } from "@astrojs/starlight/components";
+import Example from "../../components/Example.astro";
 
-The first two steps need no Trading 212 account at all.
+The first two steps need no Trading 212 account at all. New to trading APIs, or to `async` and `await`? Read
+[Key concepts](/Trading212.js/concepts/) first; it takes five minutes.
+
+<Aside title="TypeScript or JavaScript">
+	Every example has a **TypeScript** and a **JavaScript** tab. Pick one and every page remembers it. The library is
+	written in TypeScript and ships its types, but you do not need TypeScript to use it.
+</Aside>
 
 <Steps>
 
@@ -54,18 +61,10 @@ The first two steps need no Trading 212 account at all.
 2.  **Try it without a key.**
 
     The fake Trading 212 in `@kkkermit/trading212.js/testing` is the real client talking to an in-memory account, so
-    you can see how everything behaves first. Save this as `try.mjs` and run `node try.mjs`:
+    you can see how everything behaves first. Save this as `try.mjs` (or `try.ts`) and run it with `node try.mjs`
+    (or `npx tsx try.ts`):
 
-    ```js
-    import { createFakeTrading212 } from "@kkkermit/trading212.js/testing";
-
-    const { client } = createFakeTrading212({ state: { cash: 1000 } });
-
-    const apple = await client.instruments.resolve("Apple");
-    const order = await client.orders.buy({ ticker: apple.ticker, quantity: 2 });
-    console.log(await client.orders.waitFor(order)); // status: "FILLED"
-    console.log(await client.portfolio.snapshot());
-    ```
+    <Example name="try-offline" file="try" />
 
     The same thing, with a refusal and its hint, is in
     [`examples/try-it-offline.ts`](https://github.com/Kkkermit/Trading212.js/blob/main/examples/try-it-offline.ts).
@@ -110,15 +109,11 @@ The first two steps need no Trading 212 account at all.
 
 6.  **Write your first script.**
 
-        ```js title="app.mjs"
-        import { Trading212 } from "@kkkermit/trading212.js";
+    <Example name="first-script" file="app" />
 
-        const t212 = Trading212.fromEnv();
-        console.log(await t212.verify()); // { environment, accountId, currency, trading }
-        console.log(await t212.portfolio.snapshot());
-        ```
+    Run it with your `.env` loaded:
 
-        <Tabs syncKey="runtime">
+    <Tabs syncKey="runtime">
 
     <TabItem label="Node (ESM)">
 

@@ -4,6 +4,7 @@ description: Every error the library throws, what causes it, and how to fix it.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
 
 Every error the library throws extends `Trading212Error` and carries:
 
@@ -22,17 +23,33 @@ Every error the library throws extends `Trading212Error` and carries:
 `instanceof` works on every class, even when ESM and CommonJS copies of the package are both loaded.
 `isTrading212Error(value)` checks for any of them.
 
-```ts
-import { isTrading212Error, MissingScopeError } from "@kkkermit/trading212.js";
+<Example name="handle-errors" />
 
-try {
-	await t212.history.dividends.list();
-} catch (error) {
-	if (error instanceof MissingScopeError) console.log(`Make a key with ${error.scope} ticked.`);
-	else if (isTrading212Error(error)) console.log(error.code, error.hint);
-	else throw error;
-}
-```
+Test for a class with `instanceof`, or switch on `error.code`, which never changes between versions:
+
+| `code`                  | Class                      |
+| ----------------------- | -------------------------- |
+| `configuration`         | `ConfigurationError`       |
+| `validation`            | `ValidationError`          |
+| `trading_disabled`      | `TradingDisabledError`     |
+| `instrument_not_found`  | `InstrumentNotFoundError`  |
+| `authentication`        | `AuthenticationError`      |
+| `missing_scope`         | `MissingScopeError`        |
+| `not_available_in_demo` | `NotAvailableInDemoError`  |
+| `permission`            | `PermissionError`          |
+| `order_rejected`        | `OrderRejectedError`       |
+| `not_found`             | `NotFoundError`            |
+| `rate_limited`          | `RateLimitError`           |
+| `timeout`               | `TimeoutError`             |
+| `outcome_unknown`       | `OrderOutcomeUnknownError` |
+| `network`               | `NetworkError`             |
+| `server`                | `ServerError`              |
+| `http_error`            | `HttpError`                |
+| `unexpected_response`   | `UnexpectedResponseError`  |
+
+`OrderRejectedError` extends `ValidationError`, and `InstrumentNotFoundError` extends `NotFoundError`, so a check for
+the parent catches both. `toLog()` (and `JSON.stringify(error)`) gives every field with a value, plus the cause's
+message, with credentials removed.
 
 ## Before anything is sent
 
@@ -134,6 +151,6 @@ refused connection, TLS), which makes even an order safe to try again.
 ## Error bodies
 
 Trading 212's spec documents no error body, and these shapes have not yet been confirmed against the API.
-`parseErrorBody()` reads problem details (`{ type, title, status, detail }`), `{ code, clarification }`,
+`parseErrorBody(text)` returns `{ apiCode, message }` from any of them, and is exported for your own use. It reads problem details (`{ type, title, status, detail }`), `{ code, clarification }`,
 `{ code, message }`, plain text and an empty body, so an unknown shape still gives a useful error. Bodies are redacted
 before they are kept.

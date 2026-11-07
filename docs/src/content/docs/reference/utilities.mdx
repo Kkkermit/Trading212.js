@@ -1,0 +1,146 @@
+---
+title: Utilities and constants
+description: Every helper function and constant the package exports, besides the client itself.
+---
+
+Everything here is imported from `@kkkermit/trading212.js` and works without a client or a key.
+
+## Quantities
+
+### `truncateQuantity()`
+
+```ts
+truncateQuantity(value: number, decimals = 4): number
+```
+
+Cuts a quantity to `decimals` places, always towards zero, using the number's exact digits rather than floating-point
+arithmetic: `truncateQuantity(12.09032128)` is `12.0903`. Selling a truncated quantity can never exceed what you own.
+Throws `RangeError` for a value that is not a finite number.
+
+### `isValidQuantity()`
+
+```ts
+isValidQuantity(value: number): boolean
+```
+
+`true` when Trading 212 will accept the number as an order quantity: finite, not zero, at most 4 decimal places.
+
+### `decimalPlaces()`
+
+```ts
+decimalPlaces(value: number): number
+```
+
+How many decimal places a number has as written: `decimalPlaces(0.125)` is `3`.
+
+### `QUANTITY_DECIMALS`
+
+`4`: the most decimal places Trading 212 accepts in an order quantity.
+
+## Orders
+
+### `TIME_VALIDITIES`
+
+`["DAY", "GOOD_TILL_CANCEL"]`: the values `timeValidity` takes.
+
+### `FINAL_ORDER_STATUSES`
+
+A set of the statuses an order does not leave: `FILLED`, `CANCELLED`, `REJECTED` and `REPLACED`. `orders.waitFor()`
+returns when an order reaches one.
+
+```ts
+if (FINAL_ORDER_STATUSES.has(order.status ?? "")) console.log("Done");
+```
+
+## Portfolio and markets
+
+### `buildPortfolioSnapshot()`
+
+```ts
+buildPortfolioSnapshot(summary: AccountSummary, positions: Position[], takenAt?: Date): PortfolioSnapshot
+```
+
+The calculation behind `portfolio.snapshot()`, on data you already have, with no request.
+
+### `sessionAt()`
+
+```ts
+sessionAt(events: TimeEvent[], at: Date): { session; since; next; nextOpen }
+```
+
+The calculation behind `exchanges.status()`: where a market is in its day at `at`, from a working schedule's
+`timeEvents`.
+
+## Errors
+
+### `isTrading212Error()`
+
+```ts
+isTrading212Error(value: unknown): value is Trading212Error
+```
+
+`true` for any error this library threw, even from another copy of the package (ESM beside CommonJS). Every error
+class is listed in [Errors](/Trading212.js/guides/errors/).
+
+### `parseErrorBody()`
+
+```ts
+parseErrorBody(text: string): { apiCode?: string; message?: string }
+```
+
+Reads Trading 212's code and the most human sentence from an error body, whatever its shape: problem details,
+`{ code, clarification }`, `{ code, message }`, plain text or empty.
+
+## Logging and caching
+
+### `consoleLogger()`
+
+```ts
+consoleLogger(options?: { level?: "debug" | "info" | "warn" | "error"; console?: Console }): Logger
+```
+
+Writes one line per event to the console, dropping anything below `level` (default `info`). See
+[Logging and hooks](/Trading212.js/guides/logging/).
+
+### `fieldsFirst()`
+
+```ts
+fieldsFirst(logger: { debug; info; warn; error }): Logger
+```
+
+Adapts a pino- or bunyan-style logger, whose methods take `(fields, message)`.
+
+### `silentLogger`
+
+A logger that ignores everything; the default.
+
+### `MemoryCache`
+
+```ts
+new MemoryCache();
+```
+
+The default store for the instrument and exchange lists: a `Map` with expiry, private to one client. It has `get`,
+`set`, `delete` and `clear`. Pass one as `cache` to share it between clients in the same process, or write your own
+`CacheStore` to share it between processes; see [the cached list](/Trading212.js/guides/instruments-and-markets/#the-cached-list).
+
+## The API itself
+
+### `ENDPOINTS`
+
+Every Trading 212 endpoint, generated from the official spec and frozen: `ENDPOINTS.placeMarketOrder` is
+`{ id, method, path, scope, rateLimit: { requests, periodMs }, kind, deprecated, summary }`. `kind` is `"read"`,
+`"write"` (harmless, such as requesting a report) or `"trade"` (never retried, and refused while trading is off).
+These names are also what `server.failNext()` in the testing kit and the `endpoint` log field use.
+
+### `BASE_URLS`
+
+`{ demo: "https://demo.trading212.com", live: "https://live.trading212.com" }`.
+
+### `SPEC_VERSION`
+
+The version of Trading 212's OpenAPI spec this release was generated from.
+
+### `VERSION`
+
+This package's version.

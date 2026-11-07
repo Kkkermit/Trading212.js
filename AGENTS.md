@@ -99,6 +99,14 @@ docs/                     the documentation site (Astro Starlight); pages are MD
   block into one line.
 - The endpoint tables in `README.md` and `reference/api-coverage.mdx` are checked against `ENDPOINTS` by
   `tests/coverage.test.ts`.
+- Examples live in `docs/src/examples` as TypeScript, type-checked against the source by `npm run typecheck`. A page
+  shows one with `<Example name="…" />`, which generates the JavaScript tab from the TypeScript at build time, so
+  write an example once and never by hand in both languages. Keep blank lines out of template literals in them.
+- `tests/docs.test.ts` fails when an export, an exported type or a client method is not documented. A new method
+  gets its own heading in `reference/methods.mdx`, written as the method name and brackets in code, the way
+  `orders.buy()` is.
+- Write for beginners: say what something is before how to use it, and link a term to Key concepts or the glossary
+  the first time a page uses it.
 
 ## Tests
 

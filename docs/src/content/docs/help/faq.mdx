@@ -1,0 +1,108 @@
+---
+title: FAQ and troubleshooting
+description: Answers to common questions, and what to do about the errors people meet first.
+---
+
+## Getting started
+
+### Do I need TypeScript?
+
+No. The library works in plain JavaScript; every example has a JavaScript tab. It ships its types, so editors such as
+VS Code still show every option and field as you type.
+
+### Does it work with `require()`?
+
+Yes. `const { Trading212 } = require("@kkkermit/trading212.js")` works in CommonJS. Because CommonJS has no top-level
+`await`, put your code in an `async function main() { … }` and call `main()`.
+
+### Can I use it in a browser, or in React?
+
+Not directly. Trading 212 refuses requests from web pages, and a key in a page is public, so the client refuses to
+start in a browser. Call it from your server, such as an API route, and have the page call that.
+
+### Which Node version do I need?
+
+Node 22 or later. Bun and Deno work too.
+
+### Can I try it without a Trading 212 account?
+
+Yes. The [fake Trading 212](/Trading212.js/guides/testing/) is the real client talking to an in-memory account; the
+first steps of [Getting started](/Trading212.js/getting-started/) use it.
+
+## Errors you may meet first
+
+### `ConfigurationError: T212_ENV is not set`
+
+`Trading212.fromEnv()` reads `T212_ENV`, `T212_API_KEY` and `T212_API_SECRET`, and Node does not load `.env` by
+itself. Run with `node --env-file=.env app.mjs`, or set the variables in your shell or host.
+
+### `AuthenticationError`
+
+Trading 212 refused the key and secret. The usual causes, in order:
+
+1. The key was made for the other environment: a practice-mode key works on demo only, and a real-money key on live
+   only.
+2. The secret was pasted into `apiKey`, or a space was copied with it. The client catches most of these and says so.
+3. The key was deleted in the app.
+
+`npx @kkkermit/trading212.js doctor --env-file .env` checks all of these at once.
+
+### `MissingScopeError`
+
+The key works but lacks a permission; `error.scope` names it. Make a new key in the app with that permission ticked.
+[API coverage](/Trading212.js/reference/api-coverage/) lists which method needs which.
+
+### `TradingDisabledError`
+
+The client only reads, which is the default on live. Create it with `trading: "enabled"` once you are ready, and
+preview orders with `{ dryRun: true }` first.
+
+### `OrderRejectedError`
+
+Trading 212 refused the order and nothing was traded. `error.reason` says why, and `error.hint` what to do: not
+enough cash, selling more than you can, a closed market, or more than 4 decimal places.
+
+### `OrderOutcomeUnknownError`
+
+The order may or may not have gone through: it timed out, or the connection dropped after it was sent. Check
+`orders.list()` and `history.orders.list()` before trying again; the
+[safe resend recipe](/Trading212.js/recipes/#resend-an-order-safely) shows how.
+
+### `RateLimitError`
+
+A call would have had to wait longer than `maxRateLimitWaitMs` (60 s by default) for its budget. Call less often,
+or raise the limit. Remember every program using the same account shares one budget.
+
+### `NotAvailableInDemoError`
+
+The feature exists on live only; CSV exports are the expected case.
+
+## How do I…
+
+### …buy an amount of money's worth, such as £50 of Apple?
+
+The API only takes a number of shares. You can work one out from a price you already know, and round it down with
+`truncateQuantity(50 / price)`.
+
+### …sell everything I hold of one stock?
+
+`await t212.orders.sellAll("AAPL_US_EQ")`. It sells what is available, leaving shares in pies alone.
+
+### …see what the client is doing?
+
+Pass `logger: consoleLogger({ level: "debug" })`. See [Logging and hooks](/Trading212.js/guides/logging/).
+
+### …keep my key safe?
+
+Keep it in `.env` or your host's secret settings, never in code, and add `.env` to `.gitignore`. Give each program
+its own key with only the permissions it needs, and restrict keys to fixed IP addresses where you can. If a key
+leaks, delete it in the app straight away.
+
+### …find a ticker?
+
+`await t212.instruments.resolve("Apple")`. See [Instruments and market hours](/Trading212.js/guides/instruments-and-markets/).
+
+### …report a bug?
+
+Open an issue on [GitHub](https://github.com/Kkkermit/Trading212.js/issues) with the smallest code that shows it,
+ideally using the fake Trading 212, and the error's `toLog()` output. Never include your key or secret.

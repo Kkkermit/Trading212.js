@@ -220,13 +220,15 @@ try {
 
 ## Logging and hooks
 
-The client is silent by default. Give it a logger to see every request, retry and rate-limit wait. Every field is
+The client is silent by default. Give it a logger and it writes one line per event: every order at `info`, every
+read at `debug`, and retries, long rate-limit waits and orders with an unknown outcome at `warn`. Every field is
 redacted first.
 
 ```ts
 import { consoleLogger, fieldsFirst } from "@kkkermit/trading212.js";
 
-new Trading212({ ...options, logger: consoleLogger({ level: "debug" }) });
+new Trading212({ ...options, logger: consoleLogger({ level: "info" }) });
+// [trading212] INFO  POST /api/v0/equity/orders/market returned 200 in 212 ms endpoint=placeMarketOrder status=200 …
 new Trading212({ ...options, logger: fieldsFirst(pino()) }); // pino and bunyan take (fields, message)
 new Trading212({
 	...options,
@@ -258,6 +260,8 @@ The full documentation is at **[kkkermit.github.io/Trading212.js](https://kkkerm
 [`docs/src/content/docs`](docs/src/content/docs).
 
 - [Getting started](https://kkkermit.github.io/Trading212.js/getting-started/): install, keys, the doctor and a first script
+- [Key concepts](https://kkkermit.github.io/Trading212.js/concepts/) and [your first program](https://kkkermit.github.io/Trading212.js/tutorial/), for beginners
+- [Recipes](https://kkkermit.github.io/Trading212.js/recipes/): complete programs for common tasks, in TypeScript and JavaScript
 - [API coverage](https://kkkermit.github.io/Trading212.js/reference/api-coverage/): every endpoint, its method, permission and limit
 - [Orders](https://kkkermit.github.io/Trading212.js/guides/orders/): order types, quantities, `sellAll`, `waitFor`, dry runs
 - [Instruments and market hours](https://kkkermit.github.io/Trading212.js/guides/instruments-and-markets/), [history](https://kkkermit.github.io/Trading212.js/guides/history/),
@@ -267,6 +271,8 @@ The full documentation is at **[kkkermit.github.io/Trading212.js](https://kkkerm
   [configuration](https://kkkermit.github.io/Trading212.js/reference/configuration/)
 - [Testing your code](https://kkkermit.github.io/Trading212.js/guides/testing/): the fake server and scripted fetch
 - [Safety and security](https://kkkermit.github.io/Trading212.js/guides/safety/)
+- The [reference](https://kkkermit.github.io/Trading212.js/reference/client/): every method, option, helper, error and type
+- [FAQ and troubleshooting](https://kkkermit.github.io/Trading212.js/help/faq/)
 
 ## Status
 

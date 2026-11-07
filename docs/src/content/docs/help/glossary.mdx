@@ -1,0 +1,27 @@
+---
+title: Glossary
+description: Trading and API terms used in these docs, in plain English.
+---
+
+Trading and API terms used in these docs, in plain English.
+
+- **API key and secret**: The two-part credential you make in the Trading 212 app under Settings > API (Beta). Treat both like a password.
+- **Demo**: Trading 212's paper-trading environment, with practice money. Also called paper trading or practice mode.
+- **Live**: Your real account, with real money. Sometimes called production.
+- **Permission (scope)**: What a key is allowed to do, such as `portfolio` or `orders:execute`. Chosen when the key is made.
+- **Ticker**: Trading 212's name for an instrument, such as `AAPL_US_EQ`. Different from the symbols other sites use.
+- **Instrument**: Anything you can trade: a share, an ETF and so on.
+- **Position**: How much of one instrument you hold.
+- **Market order**: An order that fills straight away at the next available price.
+- **Limit order**: An order that only fills at your price (`limitPrice`) or better.
+- **Stop order**: An order that waits until the price reaches `stopPrice`, then places a market order. Used as a stop-loss.
+- **Stop-limit order**: Like a stop order, but places a limit order at `limitPrice` instead of a market order.
+- **Time validity**: How long a non-market order stays working: `DAY`, until midnight in the exchange's time zone, or `GOOD_TILL_CANCEL`, until it fills or you cancel it.
+- **Extended hours**: Trading outside an exchange's regular hours: pre-market, after-hours and overnight.
+- **Pie**: A Trading 212 portfolio of several instruments in set proportions, bought and sold together. Deprecated in the API.
+- **Dividend**: A payment a company makes to its shareholders.
+- **Dry run**: Building and checking an order without sending it, with `{ dryRun: true }`.
+- **Rate limit**: How often an endpoint may be called, such as once a second. Shared by everything using the same account.
+- **Endpoint**: One operation of the API, such as placing a market order. `ENDPOINTS` lists them all.
+- **Promise, `async` and `await`**: A promise is a value that arrives later. Putting `await` in front of a call waits for it. See [Key concepts](/Trading212.js/concepts/#async-and-await).
+- **Fake Trading 212**: An in-memory copy of the API, in the testing kit, for trying code with no network and no key.

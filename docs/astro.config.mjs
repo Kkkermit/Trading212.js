@@ -27,7 +27,10 @@ export default defineConfig({
 			lastUpdated: true,
 			plugins: [starlightLinksValidator({ errorOnLocalLinks: true })],
 			sidebar: [
-				{ label: "Start here", items: ["getting-started", "reference/api-coverage"] },
+				{
+					label: "Start here",
+					items: ["getting-started", "concepts", "tutorial", "reference/api-coverage"],
+				},
 				{
 					label: "Guides",
 					items: [
@@ -38,13 +41,26 @@ export default defineConfig({
 						"guides/reports",
 						"guides/pies",
 						"guides/errors",
-						"guides/rate-limits",
 						"guides/logging",
+						"guides/rate-limits",
 						"guides/testing",
 						"guides/safety",
 					],
 				},
-				{ label: "Reference", items: ["reference/configuration", "reference/cli"] },
+				"recipes",
+				{
+					label: "Reference",
+					items: [
+						"reference/client",
+						"reference/methods",
+						"reference/configuration",
+						"reference/utilities",
+						"reference/testing-kit",
+						"reference/types",
+						"reference/cli",
+					],
+				},
+				{ label: "Help", items: ["help/faq", "help/glossary"] },
 			],
 		}),
 	],

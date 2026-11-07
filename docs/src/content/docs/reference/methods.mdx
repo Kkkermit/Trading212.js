@@ -1,0 +1,369 @@
+---
+title: Methods
+description: Every method of the client, with its signature, what it returns, the permission it needs, its rate limit and what it throws.
+---
+
+Every method that talks to Trading 212 returns a promise, so put `await` in front of it. Each also takes a last
+argument of call options, `{ signal?, timeoutMs? }`, to cancel it or give it its own timeout; see
+[Configuration](/Trading212.js/reference/configuration/#options-on-every-call). Any method can also throw the
+errors every request can: `AuthenticationError`, `MissingScopeError`, `RateLimitError`, `TimeoutError`,
+`NetworkError` and `ServerError`.
+
+Signatures are written in TypeScript; in JavaScript, leave out everything after a `:`.
+
+## Account
+
+### `account.summary()`
+
+```ts
+summary(options?: CallOptions): Promise<AccountSummary>
+```
+
+Cash, investments, profit and loss, and total value, in the account's primary currency. Permission `account`, limit
+1 per 5 s.
+
+## Positions
+
+### `positions.list()`
+
+```ts
+list(options?: CallOptions & { ticker?: string }): Promise<Position[]>
+```
+
+Every open position, or just one ticker's. Permission `portfolio`, limit 1 per second.
+
+### `positions.get()`
+
+```ts
+get(ticker: string, options?: CallOptions): Promise<Position | undefined>
+```
+
+One ticker's position, or `undefined` when you hold none. Matches the ticker itself, so it never returns another
+holding.
+
+## Portfolio
+
+### `portfolio.snapshot()`
+
+```ts
+snapshot(options?: CallOptions): Promise<PortfolioSnapshot>
+```
+
+The account's totals and every holding's value, profit and weight, from two requests. Needs `account` and
+`portfolio`. See [Account and portfolio](/Trading212.js/guides/account-and-portfolio/#the-portfolio-snapshot) for the
+fields.
+
+## Instruments
+
+### `instruments.list()`
+
+```ts
+list(options?: { refresh?: boolean; signal?: AbortSignal }): Promise<Instrument[]>
+```
+
+Every instrument the account can trade: about 5 MB, cached for `metadataTtlMs` (one hour by default) and shared by
+callers at the same moment. Permission `metadata`, limit 1 per 50 s.
+
+### `instruments.search()`
+
+```ts
+search(
+	query: string,
+	options?: { limit?: number; type?: string; currency?: string; refresh?: boolean; signal?: AbortSignal },
+): Promise<Instrument[]>
+```
+
+Instruments matching a ticker, ISIN, short name or name, best first; `limit` defaults to 10. Reads the cached list.
+Throws `ValidationError` for an empty query.
+
+### `instruments.resolve()`
+
+```ts
+resolve(
+	query: string,
+	options?: { type?: string; currency?: string; refresh?: boolean; signal?: AbortSignal },
+): Promise<Instrument>
+```
+
+Exactly one instrument for what a person would type (`AAPL`, `Apple`, an ISIN). Throws `InstrumentNotFoundError`,
+with `suggestions`, when none or several fit.
+
+### `instruments.find()`
+
+```ts
+find(ticker: string, options?: { refresh?: boolean; signal?: AbortSignal }): Promise<Instrument | undefined>
+```
+
+The instrument with exactly this Trading 212 ticker, or `undefined`.
+
+## Exchanges
+
+### `exchanges.list()`
+
+```ts
+list(options?: { refresh?: boolean; signal?: AbortSignal }): Promise<Exchange[]>
+```
+
+Every exchange and its working schedules, cached like the instrument list. Permission `metadata`, limit 1 per 30 s.
+
+### `exchanges.status()`
+
+```ts
+status(
+	ticker: string | TradableInstrument,
+	at?: Date,
+	options?: { refresh?: boolean; signal?: AbortSignal },
+): Promise<MarketStatus>
+```
+
+Whether an instrument's market is open at `at` (default now), and when that next changes. Throws
+`InstrumentNotFoundError` for an unknown ticker. See
+[Market hours](/Trading212.js/guides/instruments-and-markets/#market-hours) for the fields.
+
+## Orders
+
+Placing, cancelling and changing orders needs `orders:execute`; on live, also `trading: "enabled"`, or it throws
+`TradingDisabledError`. None of these is ever retried.
+
+### `orders.buy()`
+
+```ts
+buy(order: OrderInput, options?: PlaceOptions): Promise<Order>
+```
+
+Buys. `order` is `{ ticker, quantity, type?, limitPrice?, stopPrice?, timeValidity?, extendedHours? }`; `type` is
+`"market"` (the default), `"limit"`, `"stop"` or `"stopLimit"`, and the quantity is positive. With
+`{ dryRun: true }` it returns a `DryRunResult` instead and sends nothing. Throws `ValidationError` before sending,
+`OrderRejectedError` when refused, or `OrderOutcomeUnknownError` when it may have gone through.
+
+### `orders.sell()`
+
+```ts
+sell(order: OrderInput, options?: PlaceOptions): Promise<Order>
+```
+
+Sells. The same as `buy()`, with a positive quantity: the client sets the sign.
+
+### `orders.sellAll()`
+
+```ts
+sellAll(ticker: string, options?: { extendedHours?: boolean; dryRun?: boolean }): Promise<Order>
+```
+
+Sells the position's `quantityAvailableForTrading`, cut to 4 decimal places, at market. Also needs `portfolio`.
+Throws `ValidationError` when nothing can be sold.
+
+### `orders.market()`
+
+```ts
+market(order: { ticker: string; quantity: number; extendedHours?: boolean }, options?: PlaceOptions): Promise<Order>
+```
+
+A market order, sent as given: a negative quantity sells. Limit 50 per minute.
+
+### `orders.limit()`
+
+```ts
+limit(
+	order: { ticker: string; quantity: number; limitPrice: number; timeValidity: "DAY" | "GOOD_TILL_CANCEL" },
+	options?: PlaceOptions,
+): Promise<Order>
+```
+
+A limit order: fills at `limitPrice` or better. Limit 1 per 2 s.
+
+### `orders.stop()`
+
+```ts
+stop(
+	order: { ticker: string; quantity: number; stopPrice: number; timeValidity: "DAY" | "GOOD_TILL_CANCEL" },
+	options?: PlaceOptions,
+): Promise<Order>
+```
+
+A stop order: places a market order once the price reaches `stopPrice`. Limit 1 per 2 s.
+
+### `orders.stopLimit()`
+
+```ts
+stopLimit(
+	order: {
+		ticker: string;
+		quantity: number;
+		stopPrice: number;
+		limitPrice: number;
+		timeValidity: "DAY" | "GOOD_TILL_CANCEL";
+	},
+	options?: PlaceOptions,
+): Promise<Order>
+```
+
+A stop-limit order: places a limit order at `limitPrice` once the price reaches `stopPrice`. Limit 1 per 2 s.
+
+### `orders.waitFor()`
+
+```ts
+waitFor(
+	order: Order | number,
+	options?: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal },
+): Promise<Order>
+```
+
+Waits until an order is filled, cancelled, rejected or replaced (`FINAL_ORDER_STATUSES`), checking every
+`intervalMs` (default 1 s), and returns it in that state. Once the order has left the pending list it looks in the
+history, which needs `history:orders`. Throws `TimeoutError` after `timeoutMs` (default 60 s).
+
+### `orders.list()`
+
+```ts
+list(options?: CallOptions): Promise<Order[]>
+```
+
+Orders that are still working: not yet filled, cancelled or expired. Permission `orders:read`, limit 1 per 5 s.
+
+### `orders.get()`
+
+```ts
+get(id: number, options?: CallOptions): Promise<Order>
+```
+
+One working order. Throws `NotFoundError` once it has filled or been cancelled. Permission `orders:read`, limit 1 per
+second.
+
+### `orders.cancel()`
+
+```ts
+cancel(id: number, options?: CallOptions): Promise<void>
+```
+
+Asks Trading 212 to cancel a working order; it may still fill first. Throws `NotFoundError` when it has already gone.
+Limit 50 per minute.
+
+## History
+
+`history.orders`, `history.dividends` and `history.transactions` each have the same two methods. Permissions
+`history:orders`, `history:dividends` and `history:transactions`; each allows 20 requests a minute.
+
+### `history.*.list()`
+
+```ts
+list(options?: { limit?: number; cursor?: string; ticker?: string; time?: Date | string } & CallOptions): Promise<Page<T>>
+```
+
+One page, newest first: `{ items, nextCursor, hasMore, next() }`. `limit` is 1 to 50. `ticker` filters orders and
+dividends; `time` starts transactions from that moment.
+
+### `history.*.all()`
+
+```ts
+all(options?: { pageSize?: number; maxPages?: number; maxItems?: number; cursor?: string } & filters & CallOptions): AsyncGenerator<T>
+```
+
+Every item, fetching pages as a `for await` loop asks for them. A failure part-way carries `resumeCursor`.
+
+## Reports
+
+The spec names no permission for these.
+
+### `reports.export()`
+
+```ts
+export(
+	request: ReportRequest,
+	options?: { timeoutMs?: number; intervalMs?: number; onStatus?: (report: Report) => void; signal?: AbortSignal },
+): Promise<{ report: Report; csv: string }>
+```
+
+Requests a report, waits for it and downloads it. A `ReportRequest` is `{ from, to, include? }`: `from` and `to` are a
+`Date` or a date string, and `include` takes `dividends`, `interest`, `orders` and `transactions`, all `true` unless you
+say otherwise.
+
+### `reports.request()`
+
+```ts
+request(request: ReportRequest, options?: CallOptions): Promise<number>
+```
+
+Asks Trading 212 to build a report and returns its ID. Throws `ValidationError` when `from` is not before `to`. Limit
+1 per 30 s.
+
+### `reports.list()`
+
+```ts
+list(options?: CallOptions): Promise<Report[]>
+```
+
+Every report you have asked for, with its status and, once finished, its download link. Limit 1 per minute.
+
+### `reports.waitFor()`
+
+```ts
+waitFor(
+	reportId: number,
+	options?: { timeoutMs?: number; intervalMs?: number; onStatus?: (report: Report) => void; signal?: AbortSignal },
+): Promise<Report>
+```
+
+Checks a report every `intervalMs` (default 60 s) until it is finished. Throws `UnexpectedResponseError` if it failed
+or was cancelled, and `TimeoutError` after `timeoutMs` (default 10 minutes).
+
+### `reports.download()`
+
+```ts
+download(report: Report | string, options?: CallOptions): Promise<string>
+```
+
+Downloads a finished report's CSV, from its signed link, without your credentials.
+
+## Pies
+
+Deprecated by Trading 212, but still working. Reading needs `pies:read`, changing needs `pies:write` and, on live,
+`trading: "enabled"`.
+
+### `pies.list()`
+
+```ts
+list(options?: CallOptions): Promise<Pie[]>
+```
+
+Every pie, with its progress. Limit 1 per 30 s.
+
+### `pies.get()`
+
+```ts
+get(id: number, options?: CallOptions): Promise<PieDetails>
+```
+
+One pie with its instruments and settings. Limit 1 per 5 s.
+
+### `pies.create()`
+
+```ts
+create(pie: PieInput, options?: CallOptions): Promise<PieDetails>
+```
+
+Makes a pie from `{ name, icon, goal, endDate, dividendCashAction, instrumentShares }`. Limit 1 per 5 s.
+
+### `pies.update()`
+
+```ts
+update(id: number, pie: PieInput, options?: CallOptions): Promise<PieDetails>
+```
+
+Changes a pie's settings or instruments. Limit 1 per 5 s.
+
+### `pies.duplicate()`
+
+```ts
+duplicate(id: number, copy?: { name?: string; icon?: string }, options?: CallOptions): Promise<PieDetails>
+```
+
+Copies a pie, optionally with a new name and icon. Limit 1 per 5 s.
+
+### `pies.delete()`
+
+```ts
+delete(id: number, options?: CallOptions): Promise<void>
+```
+
+Deletes a pie. Limit 1 per 5 s.

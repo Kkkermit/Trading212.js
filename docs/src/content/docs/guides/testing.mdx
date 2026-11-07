@@ -1,19 +1,39 @@
 ---
 title: Testing your code
-description: The fake Trading 212 and scripted fetch, for tests with no network and no key.
+description: Test code that uses the library with the fake Trading 212 or scripted fetch, with no network and no key.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
+
+The testing kit lives in its own entry point, `@kkkermit/trading212.js/testing`, so it never ends up in your
+production bundle. It works with any test runner; the examples use [Vitest](https://vitest.dev).
 
 ## The fake Trading 212
 
 `createFakeTrading212()` returns a real `Trading212` client whose `fetch` is an in-memory Trading 212, so your code
-runs exactly as it would against the API: validation, errors, pagination, the live-trading switch and all. There is
-no network and no key, and rate limiting is off so tests run instantly.
+runs exactly as it would against the API: validation, errors, pagination, the live-trading switch and all. There is no
+network and no key, and rate limiting is off, so tests run instantly.
+
+<Example name="testing-fake" file="take-profit.test" />
+
+What it does:
+
+- **Market orders fill at once** at the current price, moving cash and positions and writing history.
+- **Limit and stop orders wait** until you call `server.fill(orderId, price?)`. Their cash or shares are reserved
+  meanwhile.
+- **It refuses what Trading 212 refuses:** not enough cash, selling more than is available, more than 4 decimal
+  places, `extendedHours` on a non-market order, an unknown ticker, a closed market (`server.marketOpen = false`) and
+  the wrong key.
+- **History is paginated** with `nextPagePath`, like the real API.
+- **CSV exports are refused on demo.** Use `environment: "live"` or `server.exportsOnDemo = true` to test them. It
+  checks that your code sends no credentials to the download link.
+
+## Setting up the account
+
+Everything in `state` is optional:
 
 ```ts
-import { createFakeTrading212 } from "@kkkermit/trading212.js/testing";
-
 const { client, server } = createFakeTrading212({
 	state: {
 		cash: 5000,
@@ -22,32 +42,33 @@ const { client, server } = createFakeTrading212({
 		positions: [{ ticker: "MSFT_US_EQ", quantity: 3, averagePrice: 380, inPies: 1 }],
 		dividends: [{ ticker: "MSFT_US_EQ", amount: 2.1, paidOn: "2026-06-12T00:00:00Z" }],
 	},
+	client: { logger: console }, // any other client option
 });
 ```
 
-What it does:
+Without `instruments`, it offers Apple, Microsoft and Tesla on US markets, and Vanguard's S&P 500 ETF in London
+(`DEFAULT_INSTRUMENTS`). A ticker without a price costs 100.
 
-- **Market orders fill at once** at the current price, moving cash and positions and writing history.
-- **Limit and stop orders wait** until you call `server.fill(orderId, price?)`. Their cash or shares are reserved.
-- **It refuses what Trading 212 refuses:** not enough cash, selling more than is available, more than 4 decimal
-  places, `extendedHours` on a non-market order, an unknown ticker, a closed market (`server.marketOpen = false`) and
-  the wrong key.
-- **History is paginated** with `nextPagePath`, like the real API.
-- **CSV exports are refused on demo.** Use `environment: "live"` or `server.exportsOnDemo = true` to test them. It
-  checks your code sends no credentials to the download link.
-
-Controls and state:
+## Changing it during a test
 
 ```ts
 server.setPrice("AAPL_US_EQ", 250);
+server.marketOpen = false; // every order is refused with MarketClosed
 server.failNext("placeMarketOrder", { status: 400, body: { code: "MarketClosed" } });
 server.failNext("getAccountSummary", { network: "ECONNRESET" });
-server.position("AAPL_US_EQ"); // as the API would return it
-server.cash;
-server.requests; // every request, without credentials
+
+server.position("AAPL_US_EQ"); // the position as the API would return it, or undefined
+server.cash; // free cash
+server.requests; // every request the client made, without credentials
 ```
 
-A live fake has trading enabled unless you say otherwise, so you can test the switch:
+`failNext()` takes the endpoint's name from [`ENDPOINTS`](/Trading212.js/reference/utilities/#endpoints) and
+either a response or `{ network: code }`; queue several to fail several calls. Every control is listed in the
+[testing kit reference](/Trading212.js/reference/testing-kit/).
+
+## Testing the live switch
+
+A live fake has trading enabled unless you say otherwise, so you can test what happens when it is off:
 
 ```ts
 const { client } = createFakeTrading212({ environment: "live", client: { trading: "disabled" } });
@@ -58,51 +79,17 @@ await expect(client.orders.buy(order)).rejects.toBeInstanceOf(TradingDisabledErr
 	The fake does not do currency conversion, fees or partial fills, and its market hours are a simple weekday schedule.
 </Aside>
 
-## A complete test
-
-```ts title="take-profit.test.ts"
-import type { Trading212 } from "@kkkermit/trading212.js";
-import { createFakeTrading212 } from "@kkkermit/trading212.js/testing";
-import { expect, it } from "vitest";
-
-// The code under test: sells a holding once it is up 10%.
-async function takeProfit(t212: Trading212, ticker: string): Promise<boolean> {
-	const position = await t212.positions.get(ticker);
-	if (!position?.averagePricePaid || !position.currentPrice) return false;
-	if (position.currentPrice < position.averagePricePaid * 1.1) return false;
-	await t212.orders.sellAll(ticker);
-	return true;
-}
-
-it("sells once the price is up 10%", async () => {
-	const { client, server } = createFakeTrading212({
-		state: { positions: [{ ticker: "AAPL_US_EQ", quantity: 3, averagePrice: 100 }] },
-	});
-	server.setPrice("AAPL_US_EQ", 105);
-	expect(await takeProfit(client, "AAPL_US_EQ")).toBe(false);
-	server.setPrice("AAPL_US_EQ", 111);
-	expect(await takeProfit(client, "AAPL_US_EQ")).toBe(true);
-	expect(server.position("AAPL_US_EQ")).toBeUndefined();
-});
-```
-
-The repository's
-[`examples/testing-your-bot.test.ts`](https://github.com/Kkkermit/Trading212.js/blob/main/examples/testing-your-bot.test.ts)
-holds this test and one for a closed market, and runs with every change to the library.
-
 ## Scripted fetch
 
 For testing at the HTTP level, `scriptedFetch()` answers from a list, in order, and records every request:
 
-```ts
-import { Trading212 } from "@kkkermit/trading212.js";
-import { networkError, scriptedFetch } from "@kkkermit/trading212.js/testing";
+<Example name="testing-scripted" />
 
-const { fetch, requests } = scriptedFetch([
-	{ status: 503 },
-	{ body: { id: 1, currency: "GBP" }, headers: { "x-ratelimit-remaining": "0" } },
-	(request) => ({ status: 200, body: { echoed: request.query } }),
-	networkError("ECONNREFUSED"),
-]);
-const t212 = new Trading212({ environment: "demo", apiKey: "k-test", apiSecret: "s-test", fetch, rateLimit: "off" });
-```
+A step is a response (`{ status, body, headers }`, all optional), a function that receives the request and returns
+one, or an error to throw as a network failure, such as `networkError("ECONNREFUSED")`. `pending()` says how many
+steps are left.
+
+## Contract tests against demo
+
+This repository's own `tests/contract` suite runs against the real demo API with `npm run test:demo` when
+`T212_DEMO_API_KEY` and `T212_DEMO_API_SECRET` are set. It never touches live.
