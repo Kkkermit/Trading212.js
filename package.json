@@ -1,0 +1,131 @@
+{
+	"name": "@kkermit/trading212.js",
+	"version": "0.0.0",
+	"description": "Unofficial, zero-dependency TypeScript client for the Trading 212 Public API: typed, rate-limit aware, safe around live money, with errors that tell you how to fix them.",
+	"keywords": [
+		"trading212",
+		"trading 212",
+		"t212",
+		"stocks",
+		"isa",
+		"investing",
+		"trading",
+		"api",
+		"sdk",
+		"client",
+		"typescript"
+	],
+	"license": "MIT",
+	"author": "kkkermit",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Kkkermit/Trading212.js.git"
+	},
+	"bugs": {
+		"url": "https://github.com/Kkkermit/Trading212.js/issues"
+	},
+	"homepage": "https://github.com/Kkkermit/Trading212.js#readme",
+	"type": "module",
+	"sideEffects": false,
+	"engines": {
+		"node": ">=22"
+	},
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		},
+		"./testing": {
+			"import": {
+				"types": "./dist/testing.d.ts",
+				"default": "./dist/testing.js"
+			},
+			"require": {
+				"types": "./dist/testing.d.cts",
+				"default": "./dist/testing.cjs"
+			}
+		},
+		"./csv": {
+			"import": {
+				"types": "./dist/csv.d.ts",
+				"default": "./dist/csv.js"
+			},
+			"require": {
+				"types": "./dist/csv.d.cts",
+				"default": "./dist/csv.cjs"
+			}
+		},
+		"./package.json": "./package.json"
+	},
+	"bin": {
+		"trading212": "./dist/cli.js"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"CHANGELOG.md"
+	],
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"scripts": {
+		"build": "tsup",
+		"check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run check:package && npm run size",
+		"check:package": "publint --strict && attw --pack . --profile node16",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p examples",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"test": "vitest run --coverage",
+		"test:watch": "vitest",
+		"test:demo": "vitest run --config vitest.contract.config.ts",
+		"size": "size-limit",
+		"generate": "tsx scripts/generateApi.ts",
+		"generate:check": "tsx scripts/generateApi.ts --check",
+		"spec:fetch": "tsx scripts/fetchSpec.ts",
+		"fixtures:capture": "tsx scripts/captureErrors.ts",
+		"docs": "typedoc",
+		"secrets": "secretlint \"**/*\"",
+		"changeset": "changeset",
+		"release": "npm run check && changeset publish",
+		"prepare": "husky",
+		"smoke": "node scripts/smoke.mjs && node scripts/smoke.cjs"
+	},
+	"devDependencies": {
+		"@arethetypeswrong/cli": "^0.18.5",
+		"@changesets/cli": "^3.0.3",
+		"@commitlint/cli": "^21.2.4",
+		"@eslint/js": "^10.0.1",
+		"@secretlint/secretlint-rule-preset-recommend": "^13.1.0",
+		"@size-limit/preset-small-lib": "^14.3.0",
+		"@types/node": "^22.20.5",
+		"@vitest/coverage-v8": "^5.1.0",
+		"eslint": "^10.14.0",
+		"eslint-config-prettier": "^10.1.8",
+		"husky": "^9.1.7",
+		"lint-staged": "^17.6.0",
+		"prettier": "^3.9.10",
+		"publint": "^0.3.25",
+		"secretlint": "^13.1.0",
+		"size-limit": "^14.3.0",
+		"tsup": "^9.0.0",
+		"tsx": "^4.23.15",
+		"typedoc": "^0.28.20",
+		"typescript": "~6.0.3",
+		"typescript-eslint": "^8.72.1",
+		"vitest": "^5.1.0",
+		"yaml": "^2.9.1"
+	}
+}

@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+docs-site
+*.tgz
+.env
+.env.*
+!.env.example
+fixtures/raw
+.DS_Store
