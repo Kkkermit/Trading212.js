@@ -18,7 +18,7 @@ body:
     id: code
     attributes:
       label: Code that shows it
-      description: The smallest snippet that reproduces it. The fake server in `@kkermit/trading212.js/testing` is ideal for this.
+      description: The smallest snippet that reproduces it. The fake server in `@kkkermit/trading212.js/testing` is ideal for this.
       render: ts
   - type: textarea
     id: error

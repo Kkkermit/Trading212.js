@@ -1,5 +1,5 @@
 // Sends the client's log lines to the console (or pino), and counts requests with hooks.
-import { consoleLogger, fieldsFirst, type Logger, Trading212 } from "@kkermit/trading212.js";
+import { consoleLogger, fieldsFirst, type Logger, Trading212 } from "@kkkermit/trading212.js";
 
 // With pino: `const logger = fieldsFirst(pino())`. Any logger with debug/info/warn/error works.
 declare const pino: (() => Parameters<typeof fieldsFirst>[0]) | undefined;

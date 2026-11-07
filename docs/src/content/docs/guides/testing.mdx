@@ -12,7 +12,7 @@ runs exactly as it would against the API: validation, errors, pagination, the li
 no network and no key, and rate limiting is off so tests run instantly.
 
 ```ts
-import { createFakeTrading212 } from "@kkermit/trading212.js/testing";
+import { createFakeTrading212 } from "@kkkermit/trading212.js/testing";
 
 const { client, server } = createFakeTrading212({
 	state: {
@@ -61,8 +61,8 @@ await expect(client.orders.buy(order)).rejects.toBeInstanceOf(TradingDisabledErr
 ## A complete test
 
 ```ts title="take-profit.test.ts"
-import type { Trading212 } from "@kkermit/trading212.js";
-import { createFakeTrading212 } from "@kkermit/trading212.js/testing";
+import type { Trading212 } from "@kkkermit/trading212.js";
+import { createFakeTrading212 } from "@kkkermit/trading212.js/testing";
 import { expect, it } from "vitest";
 
 // The code under test: sells a holding once it is up 10%.
@@ -95,8 +95,8 @@ holds this test and one for a closed market, and runs with every change to the l
 For testing at the HTTP level, `scriptedFetch()` answers from a list, in order, and records every request:
 
 ```ts
-import { Trading212 } from "@kkermit/trading212.js";
-import { networkError, scriptedFetch } from "@kkermit/trading212.js/testing";
+import { Trading212 } from "@kkkermit/trading212.js";
+import { networkError, scriptedFetch } from "@kkkermit/trading212.js/testing";
 
 const { fetch, requests } = scriptedFetch([
 	{ status: 503 },

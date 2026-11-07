@@ -1,6 +1,6 @@
 // Tries the library with no key and no network, against the fake Trading 212.
-import { OrderRejectedError } from "@kkermit/trading212.js";
-import { createFakeTrading212 } from "@kkermit/trading212.js/testing";
+import { OrderRejectedError } from "@kkkermit/trading212.js";
+import { createFakeTrading212 } from "@kkkermit/trading212.js/testing";
 
 const { client, server } = createFakeTrading212({ state: { cash: 1000 } });
 

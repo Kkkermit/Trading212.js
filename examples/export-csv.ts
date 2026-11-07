@@ -1,6 +1,6 @@
 // Exports a year of history as CSV (live accounts only) and reads it back as rows.
-import { Trading212 } from "@kkermit/trading212.js";
-import { parseCsv } from "@kkermit/trading212.js/csv";
+import { Trading212 } from "@kkkermit/trading212.js";
+import { parseCsv } from "@kkkermit/trading212.js/csv";
 
 const t212 = Trading212.fromEnv();
 const { csv } = await t212.reports.export(

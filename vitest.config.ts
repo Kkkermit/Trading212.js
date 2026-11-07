@@ -9,9 +9,9 @@ export default defineConfig({
 	resolve: {
 		// The examples import the package by name, as a user would.
 		alias: [
-			{ find: "@kkermit/trading212.js/testing", replacement: source("./src/testing/index.ts") },
-			{ find: "@kkermit/trading212.js/csv", replacement: source("./src/csv/index.ts") },
-			{ find: "@kkermit/trading212.js", replacement: source("./src/index.ts") },
+			{ find: "@kkkermit/trading212.js/testing", replacement: source("./src/testing/index.ts") },
+			{ find: "@kkkermit/trading212.js/csv", replacement: source("./src/csv/index.ts") },
+			{ find: "@kkkermit/trading212.js", replacement: source("./src/index.ts") },
 		],
 	},
 	test: {

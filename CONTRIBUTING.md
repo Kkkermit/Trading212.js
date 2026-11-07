@@ -15,7 +15,7 @@ To try a change the way a user would, run an example against the source with
 
 ```sh
 npm run build && npm pack
-cd ../your-project && npm install ../trading212.js/kkermit-trading212.js-0.0.0.tgz
+cd ../your-project && npm install ../trading212.js/kkkermit-trading212.js-0.0.0.tgz
 ```
 
 Maintainers: [RELEASING.md](RELEASING.md) covers publishing to npm and deploying the docs.

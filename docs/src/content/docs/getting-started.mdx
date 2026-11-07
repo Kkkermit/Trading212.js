@@ -16,7 +16,7 @@ The first two steps need no Trading 212 account at all.
     <TabItem label="npm">
 
         ```sh
-        npm install @kkermit/trading212.js
+        npm install @kkkermit/trading212.js
         ```
 
         </TabItem>
@@ -24,7 +24,7 @@ The first two steps need no Trading 212 account at all.
     <TabItem label="pnpm">
 
         ```sh
-        pnpm add @kkermit/trading212.js
+        pnpm add @kkkermit/trading212.js
         ```
 
         </TabItem>
@@ -32,7 +32,7 @@ The first two steps need no Trading 212 account at all.
     <TabItem label="Yarn">
 
         ```sh
-        yarn add @kkermit/trading212.js
+        yarn add @kkkermit/trading212.js
         ```
 
         </TabItem>
@@ -40,24 +40,24 @@ The first two steps need no Trading 212 account at all.
     <TabItem label="Bun">
 
         ```sh
-        bun add @kkermit/trading212.js
+        bun add @kkkermit/trading212.js
         ```
 
         </TabItem>
 
     </Tabs>
 
-        You need Node 22 or later, Bun, or Deno, which imports it as `npm:@kkermit/trading212.js`. The library runs on
+        You need Node 22 or later, Bun, or Deno, which imports it as `npm:@kkkermit/trading212.js`. The library runs on
         servers only: Trading 212 refuses requests from web pages, and a key shipped to a browser is public, so the client
         refuses to start in one.
 
 2.  **Try it without a key.**
 
-    The fake Trading 212 in `@kkermit/trading212.js/testing` is the real client talking to an in-memory account, so
+    The fake Trading 212 in `@kkkermit/trading212.js/testing` is the real client talking to an in-memory account, so
     you can see how everything behaves first. Save this as `try.mjs` and run `node try.mjs`:
 
     ```js
-    import { createFakeTrading212 } from "@kkermit/trading212.js/testing";
+    import { createFakeTrading212 } from "@kkkermit/trading212.js/testing";
 
     const { client } = createFakeTrading212({ state: { cash: 1000 } });
 
@@ -102,7 +102,7 @@ The first two steps need no Trading 212 account at all.
 5.  **Check it.**
 
     ```sh
-    npx @kkermit/trading212.js doctor --env-file .env
+    npx @kkkermit/trading212.js doctor --env-file .env
     ```
 
     The [doctor](/Trading212.js/reference/cli/) signs in, then tries one read for each permission and reports which
@@ -111,7 +111,7 @@ The first two steps need no Trading 212 account at all.
 6.  **Write your first script.**
 
         ```js title="app.mjs"
-        import { Trading212 } from "@kkermit/trading212.js";
+        import { Trading212 } from "@kkkermit/trading212.js";
 
         const t212 = Trading212.fromEnv();
         console.log(await t212.verify()); // { environment, accountId, currency, trading }
@@ -131,7 +131,7 @@ The first two steps need no Trading 212 account at all.
     <TabItem label="Node (CommonJS)">
 
         ```js title="app.cjs"
-        const { Trading212 } = require("@kkermit/trading212.js");
+        const { Trading212 } = require("@kkkermit/trading212.js");
 
         async function main() {
         	const t212 = Trading212.fromEnv();
@@ -169,7 +169,7 @@ The first two steps need no Trading 212 account at all.
 
     <TabItem label="Deno">
 
-        Import from `npm:@kkermit/trading212.js`, then:
+        Import from `npm:@kkkermit/trading212.js`, then:
 
         ```sh
         deno run --allow-net --allow-env --env-file=.env app.ts

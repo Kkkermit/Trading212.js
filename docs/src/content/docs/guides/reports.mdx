@@ -38,7 +38,7 @@ credentials, and a link expires, so fetch a fresh one with `reports.list()` if a
 The parser is in its own entry point, so the client stays small:
 
 ```ts
-import { csvNumber, parseCsv } from "@kkermit/trading212.js/csv";
+import { csvNumber, parseCsv } from "@kkkermit/trading212.js/csv";
 
 for (const row of parseCsv(text)) console.log(row.Action, row.Ticker, csvNumber(row.Total));
 ```

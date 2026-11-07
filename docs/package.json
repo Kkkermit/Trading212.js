@@ -2,7 +2,7 @@
 	"name": "trading212.js-docs",
 	"private": true,
 	"type": "module",
-	"description": "The documentation site for @kkermit/trading212.js, built with Astro Starlight.",
+	"description": "The documentation site for @kkkermit/trading212.js, built with Astro Starlight.",
 	"scripts": {
 		"dev": "astro dev",
 		"build": "astro build",

@@ -8,7 +8,7 @@ Each file is a complete program. Run them from a clone of the repository, after 
 npm run example examples/try-it-offline.ts
 ```
 
-This one talks to the fake Trading 212 in `@kkermit/trading212.js/testing`, so it needs no key and no network. It
+This one talks to the fake Trading 212 in `@kkkermit/trading212.js/testing`, so it needs no key and no network. It
 signs in, resolves "Apple" to a ticker, previews and places an order, waits for the fill and shows a refusal with its
 hint.
 

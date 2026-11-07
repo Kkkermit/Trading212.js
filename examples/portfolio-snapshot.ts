@@ -1,5 +1,5 @@
 // Prints the account's total, cash and every holding's value, weight and profit.
-import { Trading212 } from "@kkermit/trading212.js";
+import { Trading212 } from "@kkkermit/trading212.js";
 
 const t212 = Trading212.fromEnv();
 const snapshot = await t212.portfolio.snapshot();

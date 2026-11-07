@@ -1,5 +1,5 @@
 // Totals every dividend ever paid, by ticker, walking the whole history page by page.
-import { Trading212 } from "@kkermit/trading212.js";
+import { Trading212 } from "@kkkermit/trading212.js";
 
 const t212 = Trading212.fromEnv();
 const totals = new Map<string, number>();

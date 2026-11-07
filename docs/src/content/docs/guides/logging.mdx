@@ -9,7 +9,7 @@ The client says nothing unless given a logger: anything with `debug`, `info`, `w
 `(message, fields)`.
 
 ```ts
-import { consoleLogger, fieldsFirst } from "@kkermit/trading212.js";
+import { consoleLogger, fieldsFirst } from "@kkkermit/trading212.js";
 
 new Trading212({ ...options, logger: console }); // everything, including debug
 new Trading212({ ...options, logger: consoleLogger({ level: "info" }) }); // "[trading212] …" from info up

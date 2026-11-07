@@ -23,7 +23,7 @@ Every error the library throws extends `Trading212Error` and carries:
 `isTrading212Error(value)` checks for any of them.
 
 ```ts
-import { isTrading212Error, MissingScopeError } from "@kkermit/trading212.js";
+import { isTrading212Error, MissingScopeError } from "@kkkermit/trading212.js";
 
 try {
 	await t212.history.dividends.list();
@@ -68,7 +68,7 @@ works in one environment only**: a key made in practice mode is refused by live,
 ### `MissingScopeError`
 
 Code `missing_scope`, status 403. The key exists but lacks a permission; `error.scope` names it, such as
-`orders:execute`. Make a key with it ticked. `npx @kkermit/trading212.js doctor` shows every missing permission at
+`orders:execute`. Make a key with it ticked. `npx @kkkermit/trading212.js doctor` shows every missing permission at
 once.
 
 ### `NotAvailableInDemoError`

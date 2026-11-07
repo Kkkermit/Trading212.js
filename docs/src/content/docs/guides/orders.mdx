@@ -65,7 +65,7 @@ Positions can hold 8 decimal places, but orders take 4. `truncateQuantity()` cut
 exact digits, never floating-point arithmetic, so it can never round up past what you own:
 
 ```ts
-import { isValidQuantity, truncateQuantity } from "@kkermit/trading212.js";
+import { isValidQuantity, truncateQuantity } from "@kkkermit/trading212.js";
 
 truncateQuantity(12.09032128); // 12.0903
 isValidQuantity(0.12345); // false

@@ -1,6 +1,6 @@
 // How to test your own code with the fake Trading 212: no network, no key, real client behaviour.
-import { OrderRejectedError, type Trading212 } from "@kkermit/trading212.js";
-import { createFakeTrading212 } from "@kkermit/trading212.js/testing";
+import { OrderRejectedError, type Trading212 } from "@kkkermit/trading212.js";
+import { createFakeTrading212 } from "@kkkermit/trading212.js/testing";
 import { describe, expect, it } from "vitest";
 
 // The code under test: sells a holding once it is up 10%.

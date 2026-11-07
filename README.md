@@ -1,7 +1,7 @@
 <h1><img src="docs/public/logo.svg" alt="trading212.js" height="64"></h1>
 
 [![CI](https://github.com/Kkkermit/Trading212.js/actions/workflows/ci.yml/badge.svg)](https://github.com/Kkkermit/Trading212.js/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@kkermit/trading212.js)](https://www.npmjs.com/package/@kkermit/trading212.js)
+[![npm](https://img.shields.io/npm/v/@kkkermit/trading212.js)](https://www.npmjs.com/package/@kkkermit/trading212.js)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 ![Node 22+](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
 
@@ -9,7 +9,7 @@ A TypeScript client for the [Trading 212 Public API](https://docs.trading212.com
 money, tells you how to fix what went wrong, and comes with a fake Trading 212 to test your code against.
 
 ```ts
-import { Trading212 } from "@kkermit/trading212.js";
+import { Trading212 } from "@kkkermit/trading212.js";
 
 const t212 = new Trading212({ environment: "demo", apiKey, apiSecret });
 
@@ -43,7 +43,7 @@ await t212.orders.waitFor(order); // FILLED
   market is open, and get your portfolio's weights and profit in one call.
 - **Test without the network.** `createFakeTrading212()` gives you the real client talking to an in-memory Trading
   212 that fills orders, tracks cash and positions, paginates history, and fails on demand.
-- **`npx @kkermit/trading212.js doctor`** checks your key, environment and every permission in one go.
+- **`npx @kkkermit/trading212.js doctor`** checks your key, environment and every permission in one go.
 - **Small and modern.** Zero runtime dependencies, about 14 kB minified and compressed, ESM and CommonJS, full types.
   Works on Node 22+, Bun and Deno.
 
@@ -57,7 +57,7 @@ missing permission and say how to fix it. Several have runtime dependencies. Com
 ## Install
 
 ```sh
-npm install @kkermit/trading212.js
+npm install @kkkermit/trading212.js
 ```
 
 Node 22 or later, Bun or Deno. Server-side only: Trading 212 refuses requests from web pages, and a key in a page is
@@ -80,7 +80,7 @@ it straight into your secret manager.
 Then check it:
 
 ```sh
-T212_ENV=demo T212_API_KEY=... T212_API_SECRET=... npx @kkermit/trading212.js doctor
+T212_ENV=demo T212_API_KEY=... T212_API_SECRET=... npx @kkkermit/trading212.js doctor
 ```
 
 The output looks like this:
@@ -98,7 +98,7 @@ The output looks like this:
 ## Quick start
 
 ```ts
-import { Trading212 } from "@kkermit/trading212.js";
+import { Trading212 } from "@kkkermit/trading212.js";
 
 // Reads T212_ENV, T212_API_KEY and T212_API_SECRET. There is no default environment, on purpose.
 const t212 = Trading212.fromEnv();
@@ -206,7 +206,7 @@ and Trading 212's own `apiCode`. `instanceof` works even if two copies of the pa
 | `ServerError`              | 5xx                                                           |
 
 ```ts
-import { isTrading212Error, MissingScopeError } from "@kkermit/trading212.js";
+import { isTrading212Error, MissingScopeError } from "@kkkermit/trading212.js";
 
 try {
 	await t212.orders.sellAll("AAPL_US_EQ");
@@ -224,7 +224,7 @@ The client is silent by default. Give it a logger to see every request, retry an
 redacted first.
 
 ```ts
-import { consoleLogger, fieldsFirst } from "@kkermit/trading212.js";
+import { consoleLogger, fieldsFirst } from "@kkkermit/trading212.js";
 
 new Trading212({ ...options, logger: consoleLogger({ level: "debug" }) });
 new Trading212({ ...options, logger: fieldsFirst(pino()) }); // pino and bunyan take (fields, message)
@@ -237,7 +237,7 @@ new Trading212({
 ## Testing your code
 
 ```ts
-import { createFakeTrading212 } from "@kkermit/trading212.js/testing";
+import { createFakeTrading212 } from "@kkkermit/trading212.js/testing";
 
 const { client, server } = createFakeTrading212({
 	state: { cash: 1000, positions: [{ ticker: "AAPL_US_EQ", quantity: 2 }] },

@@ -40,7 +40,7 @@ export function parseCsvRows(text: string): string[][] {
  * Parses CSV with a header row into one object per line, keyed by column name.
  *
  * @example
- * import { parseCsv } from "@kkermit/trading212.js/csv";
+ * import { parseCsv } from "@kkkermit/trading212.js/csv";
  * const { csv } = await t212.reports.export({ from: "2026-01-01", to: "2026-06-30" });
  * for (const row of parseCsv(csv)) console.log(row.Action, row.Ticker, row["Total"]);
  */
