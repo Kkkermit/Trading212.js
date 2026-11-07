@@ -1,0 +1,41 @@
+name: Spec drift
+
+on:
+  schedule:
+    # Off the hour: scheduled runs at :00 are delayed and dropped when GitHub is busy.
+    - cron: "37 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    name: Compare with Trading 212's published spec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run spec:fetch
+      - run: npm run generate
+      - name: Open an issue when anything changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet -- openapi/trading212.json src; then
+            echo "No change."
+            exit 0
+          fi
+          git diff --stat -- openapi/trading212.json src > drift.txt
+          git diff -- src/http/endpoints.generated.ts src/types/api.generated.ts | head -c 60000 >> drift.txt
+          title="Trading 212 changed its API spec ($(date -u +%F))"
+          if gh issue list --state open --search "in:title Trading 212 changed its API spec" --json number --jq 'length' | grep -qv '^0$'; then
+            echo "An issue is already open."
+            exit 0
+          fi
+          gh issue create --title "$title" --body-file drift.txt --label spec-drift || gh issue create --title "$title" --body-file drift.txt
