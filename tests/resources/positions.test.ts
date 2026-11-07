@@ -15,7 +15,6 @@ describe("positions", () => {
 		expect(await client.positions.get("TSLA_US_EQ")).toBeUndefined();
 	});
 
-	/** If the filter were ignored, the first holding must not be passed off as the one asked for. */
 	it("never returns a different holding when the filter is ignored", async () => {
 		const { client } = scripted([
 			{ body: [{ instrument: { ticker: "MSFT_US_EQ" }, quantity: 9 }] },

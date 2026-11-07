@@ -28,7 +28,6 @@ describe("doctor", () => {
 		expect(output).toContain("✓ trading: orders can be placed on demo");
 	});
 
-	/** The doctor must never print a credential, whatever goes wrong. */
 	it("never prints the key or secret", async () => {
 		const { output } = await doctor((server) =>
 			server.failNext("getAccountSummary", { status: 401, body: { message: ENV.T212_API_KEY } }),

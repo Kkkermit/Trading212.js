@@ -113,7 +113,6 @@ describe("retries", () => {
 		expect(requests).toHaveLength(1);
 	});
 
-	/** A duplicate order is the worst thing this library could do. */
 	it("never retries a trade", async () => {
 		const { client, requests } = scripted([{ status: 503 }, { body: {} }]);
 		await expect(client.orders.market(ORDER)).rejects.toBeInstanceOf(OrderOutcomeUnknownError);
@@ -217,7 +216,6 @@ describe("network failures", () => {
 });
 
 describe("live safety", () => {
-	/** The check runs before anything is sent, so no request reaches the network. */
 	it("refuses a trade on live unless trading is enabled", async () => {
 		const { client, requests } = scripted([{ body: {} }], { environment: "live" });
 		const error = await client.orders.market(ORDER).catch((caught: unknown) => caught);
@@ -397,7 +395,6 @@ describe("the live-trading switch", () => {
 });
 
 describe("rate-limit blocks that arrive while a call waits", () => {
-	/** A 429 seen by one call must hold back calls already waiting for a later slot. */
 	it("makes a waiting call book again after the reset", async () => {
 		vi.useFakeTimers();
 		try {

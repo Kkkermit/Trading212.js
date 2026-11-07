@@ -24,7 +24,6 @@ describe("error classes", () => {
 		expect(error.code).toBe("order_rejected");
 	});
 
-	/** Two copies of the package (ESM beside CJS) must still recognise each other's errors. */
 	it("recognise an error from another copy of the package by its brand", () => {
 		const foreign = Object.create(null) as Record<symbol, unknown>;
 		Object.defineProperty(foreign, Symbol.for("trading212.js/error"), {

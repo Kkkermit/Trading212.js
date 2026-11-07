@@ -73,7 +73,6 @@ describe("CachedLoader", () => {
 });
 
 describe("CachedLoader and abort signals", () => {
-	/** One caller giving up must not fail everyone else waiting for the same download. */
 	it("lets each caller stop waiting without failing the others", async () => {
 		const loader = new CachedLoader(new MemoryCache());
 		const load = () =>

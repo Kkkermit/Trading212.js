@@ -94,7 +94,6 @@ describe("instruments", () => {
 });
 
 describe("instruments shared between callers", () => {
-	/** The download is shared, so the first caller's abort must not fail a second caller. */
 	it("finishes the download for others when the first caller aborts", async () => {
 		const { client } = createFakeTrading212();
 		const controller = new AbortController();

@@ -34,7 +34,6 @@ describe("resolveOptions", () => {
 		expect(resolved.retry).toEqual({ maxAttempts: 3, baseDelayMs: 500, maxDelayMs: 10_000 });
 	});
 
-	/** Live must never trade by accident: it reads until told otherwise. */
 	it("leaves trading off on live unless enabled", () => {
 		expect(resolveOptions({ ...base, environment: "live" }).trading).toBe("disabled");
 		expect(resolveOptions({ ...base, environment: "live", trading: "enabled" }).trading).toBe("enabled");
@@ -133,6 +132,15 @@ describe("optionsFromEnv", () => {
 				T212_DEMO_API_SECRET: "ds",
 				T212_LIVE_API_KEY: "lk",
 				T212_LIVE_API_SECRET: "ls",
+			}),
+		).toEqual({ environment: "demo", apiKey: "dk", apiSecret: "ds" });
+		expect(
+			optionsFromEnv({
+				T212_ENV: "demo",
+				T212_API_KEY: "",
+				T212_API_SECRET: "",
+				T212_DEMO_API_KEY: "dk",
+				T212_DEMO_API_SECRET: "ds",
 			}),
 		).toEqual({ environment: "demo", apiKey: "dk", apiSecret: "ds" });
 	});

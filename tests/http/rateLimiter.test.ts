@@ -38,7 +38,6 @@ describe("RateLimiter", () => {
 		});
 	});
 
-	/** A call refused for waiting too long must not push back the calls after it. */
 	it("books nothing when the wait is longer than allowed", () => {
 		for (const mode of ["pace", "burst"] as const) {
 			const limiter = new RateLimiter(`refuse-${mode}`, mode);
@@ -88,7 +87,6 @@ describe("RateLimiter", () => {
 });
 
 describe("RateLimiter corrections in burst mode", () => {
-	/** The headers describe the window in progress, not one a later call has already been booked into. */
 	it("does not apply the current window's count to the next one", () => {
 		const limiter = new RateLimiter("future-window", "burst");
 		const threePerTen: EndpointDefinition = { ...FOUR_PER_SECOND, rateLimit: { requests: 3, periodMs: 10_000 } };
