@@ -1,22 +1,18 @@
----
-title: Safety and security
----
-
 # Safety and security
 
 ## Around real money
 
-| Guard                                      | What it prevents                                        |
-| ------------------------------------------ | ------------------------------------------------------- |
-| No default environment                     | Running against live because nobody said otherwise      |
-| Live reads only until `trading: "enabled"` | A script written for demo placing real orders           |
-| Orders are never retried                   | Buying twice because the first answer was slow          |
-| `OrderOutcomeUnknownError`                 | Treating "maybe executed" as "failed" and resending     |
-| `NetworkError` with `sent: false`          | Being unsure when a request certainly never left        |
-| `buy()`/`sell()` set the sign              | A stray minus sign turning a sale into a purchase       |
-| Validation before sending                  | Wasting rate limit on requests Trading 212 would refuse |
-| `truncateQuantity()` and `sellAll()`       | Rounding up past what you own                           |
-| `dryRun`                                   | Not knowing exactly what will be sent                   |
+| Guard                                          | What it prevents                                          |
+| ---------------------------------------------- | --------------------------------------------------------- |
+| No default environment                         | Running against live because nobody said otherwise        |
+| Only Trading 212's demo host trades by default | A demo script, or one behind a proxy, placing real orders |
+| Orders are never retried                       | Buying twice because the first answer was slow            |
+| `OrderOutcomeUnknownError`                     | Treating "maybe executed" as "failed" and resending       |
+| `NetworkError` with `sent: false`              | Being unsure when a request certainly never left          |
+| `buy()`/`sell()` set the sign                  | A stray minus sign turning a sale into a purchase         |
+| Validation before sending                      | Wasting rate limit on requests Trading 212 would refuse   |
+| `truncateQuantity()` and `sellAll()`           | Rounding up past what you own                             |
+| `dryRun`                                       | Not knowing exactly what will be sent                     |
 
 ## Your credentials
 

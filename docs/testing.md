@@ -1,7 +1,3 @@
----
-title: Testing
----
-
 # Testing your code
 
 ## The fake Trading 212

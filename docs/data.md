@@ -1,7 +1,3 @@
----
-title: Data
----
-
 # Data
 
 All amounts are in the account's **primary currency**: the API does not support multi-currency accounts. Prices of
@@ -62,7 +58,8 @@ const status = await t212.exchanges.status("AAPL_US_EQ");
 //   open, extendedHours, since, next: { event, at }, nextOpen, exchange }
 ```
 
-This reads Trading 212's working schedules, which cover a limited window ahead, so `nextOpen` can be undefined.
+This reads Trading 212's working schedules, which cover a limited window ahead, so `nextOpen` can be undefined. During a
+midday break, `nextOpen` is the end of the break.
 `sessionAt(timeEvents, date)` is the same calculation as a pure function. Treat it as guidance: Trading 212 makes
 the final decision, and refuses with `MarketClosed`.
 

@@ -1,5 +1,10 @@
 # trading212.js
 
+[![CI](https://github.com/Kkkermit/Trading212.js/actions/workflows/ci.yml/badge.svg)](https://github.com/Kkkermit/Trading212.js/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@kkermit/trading212.js)](https://www.npmjs.com/package/@kkermit/trading212.js)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+![Node 22+](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
+
 A TypeScript client for the [Trading 212 Public API](https://docs.trading212.com/api) that is safe around real
 money, tells you how to fix what went wrong, and comes with a fake Trading 212 to test your code against.
 
@@ -20,7 +25,8 @@ await t212.orders.waitFor(order); // FILLED
 
 ## Why this one
 
-- **A live client cannot trade by accident.** It only reads until you pass `trading: "enabled"`. Orders are never
+- **A live client cannot trade by accident.** It only reads until you pass `trading: "enabled"`, and so does any
+  client pointed at a custom `baseUrl`, because a proxy could forward to live. Orders are never
   retried, a request that may or may not have executed throws `OrderOutcomeUnknownError` rather than a plain
   failure, and `{ dryRun: true }` shows the exact request without sending it.
 - **Errors tell you what to do.** Every error is a named class with a `hint` in plain English. A 403 names the
@@ -32,13 +38,13 @@ await t212.orders.waitFor(order); // FILLED
 - **Rate limits are handled.** Every endpoint has its own budget, generated from the official spec, corrected from
   the response headers, and shared by every client for the same account in your process. Calls are paced the way
   Trading 212 recommends, so you should not see a 429.
-- **Whole jobs, not just endpoints.** Turn "Apple" into `AAPL_US_EQ`, sell a whole position without the
+- **Common tasks take one call.** Turn "Apple" into `AAPL_US_EQ`, sell a whole position without the
   4-decimal-place error, wait for an order to fill, export a year of history as CSV in one call, check whether a
   market is open, and get your portfolio's weights and profit in one call.
 - **Test without the network.** `createFakeTrading212()` gives you the real client talking to an in-memory Trading
   212 that fills orders, tracks cash and positions, paginates history, and fails on demand.
 - **`npx @kkermit/trading212.js doctor`** checks your key, environment and every permission in one go.
-- **Small and modern.** Zero runtime dependencies, about 13 kB minified and compressed, ESM and CommonJS, full types.
+- **Small and modern.** Zero runtime dependencies, about 14 kB minified and compressed, ESM and CommonJS, full types.
   Works on Node 22+, Bun and Deno.
 
 ### How it compares
@@ -59,7 +65,7 @@ public, so the client refuses to start in a browser.
 
 ## Get a key
 
-In the Trading 212 app, go to **Settings → API (Beta)** and create a key. You will see the secret **once**, so save
+In the Trading 212 app, go to **Settings > API (Beta)** and create a key. You will see the secret **once**, so save
 it straight into your secret manager.
 
 - **A key works in one environment only.** Make a demo key while the app is in practice mode, and a separate one
@@ -73,6 +79,8 @@ Then check it:
 ```sh
 T212_ENV=demo T212_API_KEY=... T212_API_SECRET=... npx @kkermit/trading212.js doctor
 ```
+
+The output looks like this:
 
 ```
 ✓ settings: environment demo, key 37 characters, secret 43 characters
@@ -219,8 +227,8 @@ refusals) are handled defensively and checked against the real demo API by the c
 
 ## Contributing and security
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). Report vulnerabilities privately as described in
-[SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md), and follow the [code of conduct](CODE_OF_CONDUCT.md).
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 

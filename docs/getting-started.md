@@ -1,12 +1,8 @@
----
-title: Getting started
----
-
 # Getting started
 
 ## 1. Make a key
 
-In the Trading 212 app: **Settings → API (Beta) → Generate key**.
+In the Trading 212 app, open **Settings > API (Beta)** and generate a key.
 
 - Choose the environment first. A key made in practice mode works on **demo** only; one made with real money works on
   **live** only. Using the wrong one gives `AuthenticationError`, whose hint says exactly this.
@@ -67,7 +63,7 @@ When guesses disagree, guessing is the bug.
 | ------------------------ | --------------------------------------------------------- | ----------------------------------------------------------------- |
 | `environment`            | required                                                  | `"demo"` or `"live"`                                              |
 | `apiKey`, `apiSecret`    | required                                                  | Checked for whitespace, swaps and other copy-paste slips          |
-| `trading`                | enabled on demo, disabled on live                         | Whether orders, cancellations and pie changes may be sent         |
+| `trading`                | enabled on Trading 212's demo host, otherwise disabled    | Whether orders, cancellations and pie changes may be sent         |
 | `timeoutMs`              | `15000`                                                   | Per request; override per call with `{ timeoutMs }`               |
 | `retry`                  | `{ maxAttempts: 3, baseDelayMs: 500, maxDelayMs: 10000 }` | Reads only; `false` turns it off                                  |
 | `rateLimit`              | `"pace"`                                                  | `"pace"`, `"burst"` or `"off"`; see [Rate limits](rate-limits.md) |
@@ -79,7 +75,8 @@ When guesses disagree, guessing is the bug.
 | `baseUrl`                | Trading 212                                               | Tests and proxies only; must be `https://` or `http://localhost`  |
 | `userAgent`              | `trading212.js/<version>`                                 | Appended to the user agent                                        |
 
-Every method also takes `{ signal }` to cancel it, and `{ timeoutMs }`.
+Every method also takes `{ signal }` to cancel it, and most take `{ timeoutMs }`. The instrument and exchange lists
+take only `signal`: one download is shared by every caller, so it uses the client's own timeout.
 
 ## Where next
 

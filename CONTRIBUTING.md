@@ -1,7 +1,7 @@
 # Contributing
 
 Thanks for helping. Read [AGENTS.md](AGENTS.md) first: it explains the layout and the rules that keep this library
-safe around real money.
+safe around real money. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 1. `npm ci`
 2. Make the change, with tests. Use the fake server (`src/testing`) for behaviour and `scriptedFetch` for exact HTTP.

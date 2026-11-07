@@ -1,7 +1,3 @@
----
-title: Logging and hooks
----
-
 # Logging and hooks
 
 ## Loggers

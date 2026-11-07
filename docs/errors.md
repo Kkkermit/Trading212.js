@@ -1,7 +1,3 @@
----
-title: Errors
----
-
 # Errors
 
 Every error the library throws extends `Trading212Error` and carries:
@@ -23,35 +19,49 @@ Every error the library throws extends `Trading212Error` and carries:
 
 ## Catalogue
 
-### `ConfigurationError` — `configuration`
+### `ConfigurationError`
+
+Code `configuration`.
 
 The options, or the environment variables behind `fromEnv()`, are wrong. `error.field` names the option. Nothing was
 sent. Common causes: no `environment`; whitespace around the key; the key pasted into `apiSecret`.
 
-### `AuthenticationError` — `authentication` (401)
+### `AuthenticationError`
+
+Code `authentication`, status 401.
 
 Trading 212 refused the key and secret. Check both were copied exactly. **A key works in one environment only**: a
 key made in practice mode is refused by live, and the other way round. `error.environment` says which this client
 used.
 
-### `MissingScopeError` — `missing_scope` (403)
+### `MissingScopeError`
+
+Code `missing_scope`, status 403.
 
 The key exists but lacks a permission; `error.scope` names it, such as `orders:execute`. Create a key with it ticked.
 Run `npx @kkermit/trading212.js doctor` to see every missing permission at once.
 
-### `NotAvailableInDemoError` — `not_available_in_demo` (403)
+### `NotAvailableInDemoError`
+
+Code `not_available_in_demo`, status 403.
 
 The feature only exists on live. CSV exports are the known case.
 
-### `PermissionError` — `permission` (403)
+### `PermissionError`
+
+Code `permission`, status 403.
 
 Any other refusal. If the key is restricted to IP addresses, check this machine's public address is on its list.
 
-### `ValidationError` — `validation` (400, or before sending)
+### `ValidationError`
+
+Code `validation`, status 400, or before sending.
 
 The request was invalid. When the client caught it before sending, `error.issues` lists every field at fault.
 
-### `OrderRejectedError` — `order_rejected` (400)
+### `OrderRejectedError`
+
+Code `order_rejected`, status 400.
 
 Trading 212 refused an order; nothing was traded. `error.reason`:
 
@@ -63,39 +73,56 @@ Trading 212 refused an order; nothing was traded. `error.reason`:
 | `QuantityPrecisionMismatch`    | More than 4 decimal places; use `truncateQuantity()`                       |
 | anything else                  | Trading 212's own code, passed through                                     |
 
-### `NotFoundError` — `not_found` (404)
+### `NotFoundError`
+
+Code `not_found`, status 404.
 
 For `orders.get()` this usually means the order has filled or been cancelled: look in `history.orders`.
 
-### `InstrumentNotFoundError` — `instrument_not_found`
+### `InstrumentNotFoundError`
+
+Code `instrument_not_found`.
 
 `instruments.resolve()` found nothing, or several equally good matches. `error.suggestions` lists the closest.
 
-### `RateLimitError` — `rate_limited` (429)
+### `RateLimitError`
+
+Code `rate_limited`, status 429.
 
 Out of budget; `error.retryAfterMs` and `error.resetAt` say when it resets. Reads retry by themselves when the wait
 is short. Also thrown before sending when the client would have to wait longer than `maxRateLimitWaitMs`.
 
-### `TimeoutError` — `timeout` (408, or `timeoutMs`)
+### `TimeoutError`
+
+Code `timeout`, status 408, or `timeoutMs`.
 
 No answer in time. Reads are retried; this one ran out of attempts.
 
-### `OrderOutcomeUnknownError` — `outcome_unknown`
+### `OrderOutcomeUnknownError`
+
+Code `outcome_unknown`.
 
 **An order, cancellation or pie change may or may not have happened**: it timed out, the connection dropped, the
-call was aborted after sending, or Trading 212 answered 5xx. `error.sent` holds what was sent. Check `orders.list()`
-and `history.orders.list()` before trying again. Never resend blindly.
+call was aborted after sending, Trading 212 answered 5xx or with a redirect, or it answered with a success the client
+could not read. `error.sent` holds what was sent. Check `orders.list()` and `history.orders.list()` before trying
+again. Never resend blindly.
 
-### `TradingDisabledError` — `trading_disabled`
+### `TradingDisabledError`
+
+Code `trading_disabled`.
 
 A live client was asked to trade without `trading: "enabled"`. Nothing was sent.
 
-### `NetworkError` — `network`
+### `NetworkError`
+
+Code `network`.
 
 The connection failed. `error.sent` is `false` when it failed before reaching Trading 212 (DNS, refused, TLS), which
 makes even an order safe to retry.
 
-### `ServerError` — `server` (5xx), `HttpError` — `http_error`, `UnexpectedResponseError` — `unexpected_response`
+### `ServerError`, `HttpError` and `UnexpectedResponseError`
+
+Codes `server` (5xx), `http_error` and `unexpected_response`.
 
 Trading 212 had a problem; any other status; or a response the client could not read, including a redirect it
 refused to follow with your credentials.

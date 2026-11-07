@@ -1,7 +1,3 @@
----
-title: Orders
----
-
 # Orders
 
 ## Buying and selling
@@ -34,7 +30,7 @@ convention that **a negative quantity sells**.
 
 | Type        | Fills                                                    | Needs                                     | Limit       |
 | ----------- | -------------------------------------------------------- | ----------------------------------------- | ----------- |
-| `market`    | now, at the next price                                   | —                                         | 50 / minute |
+| `market`    | now, at the next price                                   | nothing else                              | 50 / minute |
 | `limit`     | at `limitPrice` or better                                | `limitPrice`, `timeValidity`              | 1 / 2 s     |
 | `stop`      | as a market order once the price reaches `stopPrice`     | `stopPrice`, `timeValidity`               | 1 / 2 s     |
 | `stopLimit` | as a limit order at `limitPrice` once `stopPrice` is hit | `stopPrice`, `limitPrice`, `timeValidity` | 1 / 2 s     |

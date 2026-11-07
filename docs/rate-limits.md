@@ -1,7 +1,3 @@
----
-title: Rate limits
----
-
 # Rate limits
 
 Trading 212 limits every endpoint separately, **per account**: every key and every IP address on the account shares
@@ -40,5 +36,9 @@ If a call would have to wait longer than `maxRateLimitWaitMs` (default 60 s), it
 ## Several clients, several processes
 
 Clients created from the same key in the same process share one budget automatically, even across ESM and CommonJS
-copies of the package. Separate processes cannot see each other's spending: run one process per account where you
-can, or set `rateLimit: "burst"` and let the headers and retries absorb the rest.
+copies of the package. Two different keys for the same account cannot be told apart until Trading 212 answers, so
+they keep separate budgets and the response headers correct them. Separate processes cannot see each other's
+spending: run one process per account where you can, and let the headers and retries absorb the rest.
+
+If a 429 arrives while other calls are already waiting for a slot, they wait for the reset too rather than going out
+into a closed budget.

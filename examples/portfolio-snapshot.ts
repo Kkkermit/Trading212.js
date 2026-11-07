@@ -1,4 +1,4 @@
-// Prints the account at a glance. Run with: T212_ENV=demo T212_API_KEY=... T212_API_SECRET=... npx tsx examples/portfolio-snapshot.ts
+// Prints a summary of the account. Run with: T212_ENV=demo T212_API_KEY=... T212_API_SECRET=... npx tsx examples/portfolio-snapshot.ts
 import { Trading212 } from "@kkermit/trading212.js";
 
 const t212 = Trading212.fromEnv();
