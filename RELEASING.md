@@ -1,15 +1,22 @@
 # Releasing
 
-How `@kkermit/trading212.js` gets to npm, and the documentation to GitHub Pages. Releases run through
-[Changesets](https://github.com/changesets/changesets) and `.github/workflows/release.yml`, which publishes with npm
-trusted publishing, so no npm token is stored anywhere. npm cannot set up trusted publishing for a package that does
-not exist yet, so the first release is published by hand, once.
+How `@kkkermit/trading212.js` gets to npm and GitHub Packages, and the documentation to GitHub Pages. Releases run
+through [Changesets](https://github.com/changesets/changesets) and `.github/workflows/release.yml`, which publishes to
+npm with trusted publishing, so no npm token is stored anywhere. npm cannot set up trusted publishing for a package
+that does not exist yet, so the first release is published by hand, once.
+
+npm is where users install from. Each version on npm is then copied to
+[GitHub Packages](https://github.com/Kkkermit/Trading212.js/packages) with the workflow's own `GITHUB_TOKEN`, so the
+package shows on the repository page. Installing from GitHub Packages needs a GitHub token even for a public package,
+so the docs point everyone at npm.
 
 ## Once, before the first release
 
-1. **The npm scope.** The package is published as `@kkermit/trading212.js`, so you need the `kkermit` scope: either
-   an npm account called `kkermit`, or a free npm organisation of that name that your account belongs to. Turn on
-   two-factor authentication for the account. `npm view @kkermit/trading212.js` answering 404 means the name is free.
+1. **The npm scope.** The package is published as `@kkkermit/trading212.js`, so you need the `kkkermit` scope: either
+   an npm account called `kkkermit`, or a free npm organisation of that name that your account belongs to. Turn on
+   two-factor authentication for the account. `npm view @kkkermit/trading212.js` answering 404 means the name is free.
+   GitHub Packages needs the same scope, because it only accepts the name of the GitHub account that owns the
+   repository, and the release workflow already has the permission it needs there.
 2. **Make the repository public.** npm only records provenance for a public source repository, and GitHub Pages is
    free only for public repositories.
 3. **Let Actions open pull requests.** In the repository's **Settings > Actions > General**, under _Workflow
@@ -53,7 +60,11 @@ first release) and writes `CHANGELOG.md`. **Do not merge it yet.**
    The fields are case-sensitive. Then, under **Publishing access**, choose to require two-factor authentication and
    disallow tokens, so the workflow is the only way to publish.
 
-3. Merge the release pull request. The workflow sees the version is already on npm and publishes nothing.
+3. Merge the release pull request. The workflow sees the version is already on npm and publishes nothing there, then
+   copies it to GitHub Packages.
+
+   GitHub may make a new package private. Open it from the repository's **Packages** list, and under **Package
+   settings** check its visibility is public and that it is linked to `Trading212.js`.
 
 4. Tag the release: `git checkout main && git pull && git tag v0.1.0 && git push origin v0.1.0`.
 
@@ -62,23 +73,23 @@ first release) and writes `CHANGELOG.md`. **Do not merge it yet.**
 1. In the pull request that changes something users will notice, run `npm run changeset`, pick the bump (patch,
    minor or major) and write one sentence for the changelog. Commit the file it writes.
 2. Merge the pull request. The release workflow opens, or updates, the _chore: Release a new version_ pull request.
-3. Merge that when you want to release. The workflow runs `npm run check`, publishes with provenance through trusted
-   publishing, and tags the release.
+3. Merge that when you want to release. The workflow runs `npm run check`, publishes to npm with provenance through
+   trusted publishing, tags the release, and copies the version to GitHub Packages.
 
 While the version is 0.x, a minor bump may break things, as the API itself is in beta.
 
 ## Checking a release
 
-- `npm view @kkermit/trading212.js` shows the published versions.
+- `npm view @kkkermit/trading212.js` shows the published versions.
 - The package page on npmjs.com shows a provenance badge linking to the workflow run that built it.
-- `npm install @kkermit/trading212.js` in an empty project, then the
+- `npm install @kkkermit/trading212.js` in an empty project, then the
   [getting started](https://kkkermit.github.io/Trading212.js/getting-started/) steps, is the check a user would make.
 
 ## Before publishing, try the package locally
 
 ```sh
 npm run build && npm pack
-cd ../some-project && npm install ../Trading212.js/kkermit-trading212.js-0.1.0.tgz
+cd ../some-project && npm install ../Trading212.js/kkkermit-trading212.js-0.1.0.tgz
 ```
 
 `npm pack --dry-run` lists exactly what would be published: `dist/`, `README.md`, `LICENSE` and `CHANGELOG.md`.
@@ -88,5 +99,8 @@ cd ../some-project && npm install ../Trading212.js/kkermit-trading212.js-0.1.0.t
 - **The workflow fails with 404 or "not found" when publishing.** The trusted publisher is missing or its fields do
   not match exactly, or npm is older than 11.5.1; the workflow installs npm 11 for this reason.
 - **Provenance fails with "repository visibility: private".** The repository is still private.
-- **A bad version went out.** Run `npm deprecate @kkermit/trading212.js@<version> "<why, and what to use>"` and
+- **The GitHub Packages step fails with 403.** The job needs `packages: write`, which `release.yml` grants, and the
+  package must be linked to this repository. A package first published from somewhere else needs this repository
+  added under **Package settings > Manage Actions access**.
+- **A bad version went out.** Run `npm deprecate @kkkermit/trading212.js@<version> "<why, and what to use>"` and
   release a fix. npm only allows unpublishing within 72 hours, and a version number can never be reused.
