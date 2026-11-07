@@ -4,10 +4,21 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
     groups:
       tooling:
         dependency-type: development
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    commit-message:
+      prefix: chore
+    groups:
+      actions:
+        patterns: ["*"]

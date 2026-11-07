@@ -2,7 +2,7 @@ name: Spec drift
 
 on:
   schedule:
-    # Off the hour: scheduled runs at :00 are delayed and dropped when GitHub is busy.
+    # Off the hour: scheduled runs at :00 are the first to be delayed or dropped when GitHub is busy.
     - cron: "37 6 * * 1"
   workflow_dispatch:
 
@@ -15,8 +15,10 @@ jobs:
     name: Compare with Trading 212's published spec
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -26,16 +28,22 @@ jobs:
       - name: Open an issue when anything changed
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if git diff --quiet -- openapi/trading212.json src; then
-            echo "No change."
+            echo "The spec has not changed."
             exit 0
           fi
-          git diff --stat -- openapi/trading212.json src > drift.txt
-          git diff -- src/http/endpoints.generated.ts src/types/api.generated.ts | head -c 60000 >> drift.txt
-          title="Trading 212 changed its API spec ($(date -u +%F))"
-          if gh issue list --state open --search "in:title Trading 212 changed its API spec" --json number --jq 'length' | grep -qv '^0$'; then
+          title="Trading 212 changed its API spec"
+          if [ -n "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')" ]; then
             echo "An issue is already open."
             exit 0
           fi
-          gh issue create --title "$title" --body-file drift.txt --label spec-drift || gh issue create --title "$title" --body-file drift.txt
+          {
+            echo "The weekly check found changes in Trading 212's published spec. Run \`npm run spec:fetch\` and \`npm run generate\`, then review:"
+            echo
+            echo '```diff'
+            git diff -- src/http/endpoints.generated.ts src/types/api.generated.ts | head -c 60000
+            echo '```'
+          } > drift.md
+          gh issue create --title "$title" --body-file drift.md
