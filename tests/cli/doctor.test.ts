@@ -91,3 +91,17 @@ describe("doctor", () => {
 		expect(lines.join("\n")).toContain("not even an error");
 	});
 });
+
+describe("doctor settings", () => {
+	it("reports settings once, after the client accepted them", async () => {
+		const lines: string[] = [];
+		const code = await runDoctor({
+			env: { T212_ENV: "demo", T212_API_KEY: " padded-key-123456", T212_API_SECRET: "doctor-secret-abcdef" },
+			write: (line) => lines.push(line),
+		});
+		expect(code).toBe(1);
+		expect(lines.filter((line) => line.includes("settings"))).toEqual([
+			expect.stringMatching(/^✗ settings: The API key starts or ends with whitespace/),
+		]);
+	});
+});

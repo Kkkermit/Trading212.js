@@ -54,7 +54,18 @@ export class CachedLoader {
 		this.#onError = onError;
 	}
 
-	async load<T>(key: string, ttlMs: number, refresh: boolean, loader: () => Promise<T>): Promise<T> {
+	/**
+	 * The shared load is started without any caller's signal, so one caller giving up never fails the others; each
+	 * caller stops waiting when its own `signal` aborts.
+	 */
+	async load<T>(
+		key: string,
+		ttlMs: number,
+		refresh: boolean,
+		loader: () => Promise<T>,
+		signal?: AbortSignal,
+	): Promise<T> {
+		if (signal?.aborted) throw signal.reason as Error;
 		if (!refresh) {
 			let cached: unknown;
 			try {
@@ -65,7 +76,7 @@ export class CachedLoader {
 			if (cached !== undefined) return cached as T;
 		}
 		const pending = this.#inFlight.get(key);
-		if (pending) return pending as Promise<T>;
+		if (pending) return untilAborted(pending as Promise<T>, signal);
 		const promise = (async () => {
 			try {
 				const value = await loader();
@@ -80,6 +91,21 @@ export class CachedLoader {
 			}
 		})();
 		this.#inFlight.set(key, promise);
-		return promise;
+		return untilAborted(promise, signal);
 	}
+}
+
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+	if (!signal) return promise;
+	if (signal.aborted) return Promise.reject(signal.reason as Error);
+	let onAbort = (): void => undefined;
+	const aborted = new Promise<never>((_resolve, reject) => {
+		onAbort = () => {
+			reject(signal.reason as Error);
+		};
+		signal.addEventListener("abort", onAbort, { once: true });
+	});
+	return Promise.race([promise, aborted]).finally(() => {
+		signal.removeEventListener("abort", onAbort);
+	});
 }

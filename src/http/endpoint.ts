@@ -22,3 +22,12 @@ export interface EndpointDefinition {
 	readonly deprecated: boolean;
 	readonly summary: string;
 }
+
+/** Freezes the endpoint table and every definition in it, so its safety facts cannot be changed at run time. */
+export function freezeEndpoints<T extends Record<string, EndpointDefinition>>(definitions: T): T {
+	for (const definition of Object.values(definitions)) {
+		Object.freeze(definition.rateLimit);
+		Object.freeze(definition);
+	}
+	return Object.freeze(definitions);
+}

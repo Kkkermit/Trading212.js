@@ -68,12 +68,12 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
 	let client: Trading212;
 	try {
 		const settings = optionsFromEnv(options.env);
+		client = options.createClient ? options.createClient(options.env) : new Trading212(settings);
 		report({
 			name: "settings",
 			status: "ok",
 			detail: `environment ${settings.environment}, key ${settings.apiKey.length} characters, secret ${settings.apiSecret.length} characters`,
 		});
-		client = options.createClient ? options.createClient(options.env) : new Trading212(settings);
 	} catch (error) {
 		report({ name: "settings", status: "failed", detail: explain(error) });
 		return finish(1);

@@ -356,3 +356,74 @@ describe("responses that break while being read", () => {
 		expect(error).not.toBeInstanceOf(OrderOutcomeUnknownError);
 	});
 });
+
+describe("trades that Trading 212 answered unusually", () => {
+	/** A success Trading 212 cannot describe has very likely gone through, so calling it a plain failure invites a duplicate. */
+	it("reports a trade whose success body is not JSON, or a redirect, as an unknown outcome", async () => {
+		for (const step of [{ body: "<html>proxy page</html>" }, { status: 303, headers: { location: "/orders/1" } }]) {
+			const { client } = scripted([step]);
+			await expect(client.orders.market(ORDER)).rejects.toBeInstanceOf(OrderOutcomeUnknownError);
+		}
+	});
+
+	it("reports an order placed with an empty answer as an unknown outcome", async () => {
+		const { client } = scripted([{ status: 200 }]);
+		await expect(client.orders.market(ORDER)).rejects.toThrow("succeeded (200) but returned an empty body");
+	});
+
+	it("still treats an empty answer to a cancellation as success", async () => {
+		const { client } = scripted([{ status: 200 }]);
+		await expect(client.orders.cancel(7)).resolves.toBeUndefined();
+	});
+});
+
+describe("the live-trading switch", () => {
+	/** A demo client pointed at live, or at a proxy that forwards anywhere, must not trade by default. */
+	it("keeps trading off behind a custom baseUrl unless enabled", async () => {
+		const { client, requests } = scripted([{ body: {} }], { baseUrl: "https://proxy.example" });
+		expect(client.trading).toBe("disabled");
+		await expect(client.orders.market(ORDER)).rejects.toBeInstanceOf(TradingDisabledError);
+		expect(requests).toHaveLength(0);
+		const enabled = scripted([{ body: { id: 1 } }], { baseUrl: "https://proxy.example", trading: "enabled" });
+		await expect(enabled.client.orders.market(ORDER)).resolves.toEqual({ id: 1 });
+	});
+
+	it("honours trading: disabled on demo", async () => {
+		const { client, requests } = scripted([{ body: {} }], { trading: "disabled" });
+		expect(client.trading).toBe("disabled");
+		await expect(client.orders.market(ORDER)).rejects.toBeInstanceOf(TradingDisabledError);
+		expect(requests).toHaveLength(0);
+	});
+});
+
+describe("rate-limit blocks that arrive while a call waits", () => {
+	/** A 429 seen by one call must hold back calls already waiting for a later slot. */
+	it("makes a waiting call book again after the reset", async () => {
+		vi.useFakeTimers();
+		try {
+			const sentAt: number[] = [];
+			const { client } = scripted(
+				[
+					() => {
+						sentAt.push(Date.now());
+						return { status: 429, headers: { "retry-after": "3" } };
+					},
+					() => {
+						sentAt.push(Date.now());
+						return { body: [] };
+					},
+				],
+				{ rateLimit: "pace", retry: false },
+			);
+			const start = Date.now();
+			const first = client.positions.list().catch((caught: unknown) => caught);
+			const second = client.positions.list();
+			await vi.advanceTimersByTimeAsync(5000);
+			expect(await first).toBeInstanceOf(RateLimitError);
+			await expect(second).resolves.toEqual([]);
+			expect((sentAt[1] ?? 0) - start).toBeGreaterThanOrEqual(3000);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});

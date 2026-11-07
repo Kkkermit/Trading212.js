@@ -140,3 +140,14 @@ describe("orders", () => {
 		await expect(broken.client.orders.waitFor(5)).rejects.not.toBeInstanceOf(NotFoundError);
 	});
 });
+
+describe("sellAll without an available quantity", () => {
+	/** Falling back to the whole quantity would try to sell shares held in pies. */
+	it("refuses rather than guess", async () => {
+		const { client, requests } = scripted([
+			{ body: [{ instrument: { ticker: "AAPL_US_EQ" }, quantity: 5, quantityInPies: 2 }] },
+		]);
+		await expect(client.orders.sellAll("AAPL_US_EQ")).rejects.toThrow("did not say how much");
+		expect(requests).toHaveLength(1);
+	});
+});

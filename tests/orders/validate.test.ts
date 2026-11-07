@@ -89,3 +89,11 @@ describe("validateOrder", () => {
 		).toEqual(["limitPrice is not used by a market order"]);
 	});
 });
+
+describe("validateOrder with an unknown type", () => {
+	it("refuses it as a validation error rather than crashing", () => {
+		expect(() => {
+			validateOrder("Limit" as never, { ticker: "A", quantity: 1 });
+		}).toThrow(ValidationError);
+	});
+});

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { NotAvailableInDemoError, TimeoutError, UnexpectedResponseError } from "../../src/errors/errors";
+import { Trading212 } from "../../src/client";
+import { NetworkError, NotAvailableInDemoError, TimeoutError, UnexpectedResponseError } from "../../src/errors/errors";
+import { FAKE_API_KEY, FAKE_API_SECRET, FakeTrading212Server } from "../../src/testing";
 import { createFakeTrading212 } from "../../src/testing";
 
 import { scripted } from "../helpers";
@@ -89,5 +91,46 @@ describe("reports", () => {
 		await expect(fine.client.reports.download("https://s3.example/x.csv", { timeoutMs: 1000 })).resolves.toBe(
 			"a,b\n1,2\n",
 		);
+	});
+});
+
+describe("reports.export timeouts and download failures", () => {
+	/** The export's timeout bounds the whole wait; it must not become the timeout of each request. */
+	it("does not use the total wait as the request's timeout", async () => {
+		const server = new FakeTrading212Server({}, "live");
+		const slowRequests: typeof server.fetch = async (input, init) => {
+			if (init.method === "POST") await new Promise((resolve) => setTimeout(resolve, 60));
+			return server.fetch(input, init);
+		};
+		const client = new Trading212({
+			environment: "live",
+			apiKey: FAKE_API_KEY,
+			apiSecret: FAKE_API_SECRET,
+			fetch: slowRequests,
+			rateLimit: "off",
+		});
+		const { csv } = await client.reports.export(
+			{ from: "2026-01-01", to: "2026-02-01" },
+			{ timeoutMs: 30, intervalMs: 1 },
+		);
+		expect(csv).toContain("Action,Time");
+	});
+
+	it("wraps a body that breaks during download, and never attaches the signed link", async () => {
+		const broken = new Response(
+			new ReadableStream({
+				pull: (controller) => {
+					controller.error(new Error("https://s3.example/x.csv?signature=secret-signature"));
+				},
+			}),
+			{ status: 200 },
+		);
+		const { client } = scripted([], { fetch: () => Promise.resolve(broken) });
+		const error = (await client.reports
+			.download("https://s3.example/x.csv?signature=secret-signature")
+			.catch((caught: unknown) => caught)) as Error;
+		expect(error).toBeInstanceOf(NetworkError);
+		expect(JSON.stringify(error)).not.toContain("secret-signature");
+		expect(error.message).not.toContain("secret-signature");
 	});
 });

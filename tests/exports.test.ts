@@ -68,3 +68,18 @@ describe("public exports", () => {
 		expect(Object.values(root.ENDPOINTS).filter((endpoint) => endpoint.kind === "trade")).toHaveLength(9);
 	});
 });
+
+describe("ENDPOINTS", () => {
+	/** A mutable table would let any code make trades retryable or skip the live switch. */
+	it("cannot be changed at run time", () => {
+		expect(() => {
+			(root.ENDPOINTS.placeMarketOrder as { kind: string }).kind = "read";
+		}).toThrow(TypeError);
+		expect(() => {
+			(root.ENDPOINTS.placeMarketOrder.rateLimit as { requests: number }).requests = 1000;
+		}).toThrow(TypeError);
+		expect(() => {
+			(root.ENDPOINTS as Record<string, unknown>).extra = {};
+		}).toThrow(TypeError);
+	});
+});

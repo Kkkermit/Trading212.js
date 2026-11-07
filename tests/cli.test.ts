@@ -45,5 +45,11 @@ describe("the command line", () => {
 			process.env = saved;
 		}
 		expect((await run(["doctor", "--env-file", join(directory, "missing")])).err).toContain("Could not read");
+
+		// Variables already set win over the file, and the file never reaches process.env.
+		writeFileSync(file, "T212_ENV=live\nT212_FROM_FILE_ONLY=1\n");
+		const flagWins = await run(["doctor", "--env-file", file, "--json"], { T212_ENV: "demo" });
+		expect(flagWins.out).toContain("T212_DEMO_API_KEY");
+		expect(process.env.T212_FROM_FILE_ONLY).toBeUndefined();
 	});
 });

@@ -48,5 +48,6 @@ describe("csvNumber", () => {
 		expect(csvNumber("Infinity")).toBeUndefined();
 		expect(csvNumber("1e999")).toBeUndefined();
 		expect(csvNumber("12 345")).toBeUndefined();
+		expect(csvNumber("0,123")).toBeUndefined();
 	});
 });

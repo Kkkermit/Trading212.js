@@ -119,3 +119,19 @@ describe("credentials only go to Trading 212", () => {
 		expect(requests[0]?.authorized).toBe(false);
 	});
 });
+
+describe("credentials near the cut-off of a long body", () => {
+	/** Cutting before redacting would leave most of a secret that straddled the cut. */
+	it("redacts before it truncates", async () => {
+		const prefix = API_SECRET.slice(0, 12);
+		const longError = `${"x".repeat(64 * 1024 - 8)}${API_SECRET}`;
+		const longPage = `${"y".repeat(2000 - 8)}${API_SECRET}`;
+		const { client } = scripted([
+			{ status: 400, body: longError },
+			{ status: 200, body: longPage },
+		]);
+		const error = await client.account.summary().catch((caught: unknown) => caught);
+		const notJson = await client.account.summary().catch((caught: unknown) => caught);
+		for (const view of [error, notJson]) expect(JSON.stringify(view)).not.toContain(prefix);
+	});
+});

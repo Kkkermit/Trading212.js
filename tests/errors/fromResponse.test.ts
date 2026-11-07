@@ -156,3 +156,11 @@ describe("errorFromResponse", () => {
 		}
 	});
 });
+
+describe("errorFromResponse outside trades", () => {
+	it("does not call a refused read an order rejection", () => {
+		const error = errorFromResponse(context({ status: 400, text: '{"code":"MarketClosed"}' }));
+		expect(error).toBeInstanceOf(ValidationError);
+		expect(error).not.toBeInstanceOf(OrderRejectedError);
+	});
+});

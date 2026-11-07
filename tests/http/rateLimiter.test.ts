@@ -86,3 +86,22 @@ describe("RateLimiter", () => {
 		expect(new RateLimiter("other", "pace").reserve(FOUR_PER_SECOND, 0).waitMs).toBe(0);
 	});
 });
+
+describe("RateLimiter corrections in burst mode", () => {
+	/** The headers describe the window in progress, not one a later call has already been booked into. */
+	it("does not apply the current window's count to the next one", () => {
+		const limiter = new RateLimiter("future-window", "burst");
+		const threePerTen: EndpointDefinition = { ...FOUR_PER_SECOND, rateLimit: { requests: 3, periodMs: 10_000 } };
+		for (let call = 0; call < 4; call++) limiter.reserve(threePerTen, 0);
+		for (const remaining of [2, 1, 0]) limiter.update(threePerTen, { remaining, resetAt: 10_000 }, 100);
+		expect(limiter.reserve(threePerTen, 200).waitMs).toBe(9800);
+	});
+
+	it("reports how long an endpoint is blocked for", () => {
+		const limiter = new RateLimiter("blocked", "pace");
+		expect(limiter.blockedFor(FOUR_PER_SECOND, 0)).toBe(0);
+		limiter.markLimited(FOUR_PER_SECOND, 5000, 1000);
+		expect(limiter.blockedFor(FOUR_PER_SECOND, 1000)).toBe(4000);
+		expect(new RateLimiter("blocked", "off").blockedFor(FOUR_PER_SECOND, 1000)).toBe(0);
+	});
+});

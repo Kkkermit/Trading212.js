@@ -25,7 +25,7 @@ export const HINTS = {
 			? "Trading 212 had a problem of its own. Reads are retried automatically; this one ran out of attempts."
 			: "Trading 212 had a problem of its own. Requests that change something are never retried automatically.",
 	tradingDisabled:
-		'This client was created for live without trading switched on, so nothing was sent. Pass `trading: "enabled"` to place real orders, or `{ dryRun: true }` to preview one.',
+		'Trading is off for this client, which is the default on live and behind a custom baseUrl, so nothing was sent. Pass `trading: "enabled"` to place orders, or `{ dryRun: true }` to preview one.',
 	network: (sent: boolean): string =>
 		sent
 			? "The connection broke while waiting for Trading 212. Reads are retried automatically; this one ran out of attempts."

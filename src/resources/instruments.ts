@@ -1,13 +1,15 @@
 import { InstrumentNotFoundError, ValidationError } from "../errors/errors";
 import { ENDPOINTS } from "../http/endpoints.generated";
-import type { CallOptions } from "../http/transport";
 import type { TradableInstrument } from "../types/api.generated";
 
 import type { ResourceContext } from "./context";
 
-export interface ListOptions extends CallOptions {
+/** The list is shared between callers, so it is fetched with the client's own timeout rather than a per-call one. */
+export interface ListOptions {
 	/** Ignore the cache and fetch afresh. */
 	refresh?: boolean;
+	/** Stops this caller waiting; a download other callers share carries on. */
+	signal?: AbortSignal;
 }
 
 export interface SearchOptions extends ListOptions {
@@ -62,12 +64,18 @@ export class InstrumentsResource {
 	 * Scope `metadata` · 1 request / 50 s.
 	 */
 	async list(options: ListOptions = {}): Promise<TradableInstrument[]> {
-		const { refresh = false, ...call } = options;
+		const { refresh = false, signal } = options;
 		const { cache, cacheNamespace, metadataTtlMs, transport } = this.#context;
-		return cache.load(`${cacheNamespace}:instruments`, metadataTtlMs, refresh, async () => {
-			const { data } = await transport.request<TradableInstrument[] | undefined>(ENDPOINTS.listInstruments, call);
-			return Array.isArray(data) ? data : [];
-		});
+		return cache.load(
+			`${cacheNamespace}:instruments`,
+			metadataTtlMs,
+			refresh,
+			async () => {
+				const { data } = await transport.request<TradableInstrument[] | undefined>(ENDPOINTS.listInstruments);
+				return Array.isArray(data) ? data : [];
+			},
+			signal,
+		);
 	}
 
 	/**

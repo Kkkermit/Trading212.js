@@ -53,7 +53,7 @@ export function parseCsv(text: string): Record<string, string>[] {
 }
 
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
-const GROUPED = /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/;
+const GROUPED = /^[+-]?[1-9]\d{0,2}(?:,\d{3})+(?:\.\d+)?$/;
 
 /**
  * Reads a number from a CSV cell, such as `1234.56`, `1,234.56` or `-0.5`, or returns `undefined` for anything else.

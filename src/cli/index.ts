@@ -1,4 +1,5 @@
-import { parseArgs } from "node:util";
+import { readFileSync } from "node:fs";
+import { parseArgs, parseEnv } from "node:util";
 
 import { VERSION } from "../version";
 
@@ -50,16 +51,18 @@ export async function main(argv: readonly string[], env: NodeJS.ProcessEnv): Pro
 		console.error(`Unknown command "${command}".\n\n${HELP}`);
 		return 2;
 	}
-	const source: Record<string, string | undefined> = { ...env };
-	if (parsed.values["env-file"]) {
+	// Variables already set win over the file, and the file never changes process.env.
+	let fromFile: Record<string, string | undefined> = {};
+	const envFile = parsed.values["env-file"];
+	if (envFile) {
 		try {
-			process.loadEnvFile(parsed.values["env-file"]);
-			Object.assign(source, process.env);
+			fromFile = parseEnv(readFileSync(envFile, "utf8"));
 		} catch (error) {
-			console.error(`Could not read ${parsed.values["env-file"]}: ${(error as Error).message}`);
+			console.error(`Could not read ${envFile}: ${(error as Error).message}`);
 			return 2;
 		}
 	}
+	const source: Record<string, string | undefined> = { ...fromFile, ...env };
 	if (parsed.values.env) source.T212_ENV = parsed.values.env;
 	return runDoctor({
 		env: source,

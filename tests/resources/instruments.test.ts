@@ -92,3 +92,16 @@ describe("instruments", () => {
 		expect(await client.instruments.list({ refresh: true })).toEqual([]);
 	});
 });
+
+describe("instruments shared between callers", () => {
+	/** The download is shared, so the first caller's abort must not fail a second caller. */
+	it("finishes the download for others when the first caller aborts", async () => {
+		const { client } = createFakeTrading212();
+		const controller = new AbortController();
+		const first = client.instruments.list({ signal: controller.signal });
+		const second = client.instruments.list();
+		controller.abort(new Error("first gave up"));
+		await expect(first).rejects.toThrow("first gave up");
+		await expect(second).resolves.toHaveLength(DEFAULT_INSTRUMENTS.length);
+	});
+});

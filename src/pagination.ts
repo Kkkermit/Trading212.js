@@ -141,6 +141,11 @@ export class PagedList<T, F extends object = object> {
 		let pages = 0;
 		let yielded = 0;
 		let cursor: string | undefined = rest.cursor;
+		const seen = new Set<string>();
+		const call: CallOptions = {
+			...(rest.signal && { signal: rest.signal }),
+			...(rest.timeoutMs !== undefined && { timeoutMs: rest.timeoutMs }),
+		};
 		let page: Page<T> | null;
 		try {
 			page = await this.list({ ...rest, limit: pageSize } as PageOptions & F);
@@ -156,8 +161,17 @@ export class PagedList<T, F extends object = object> {
 			}
 			if (!page.hasMore || (maxPages !== undefined && pages >= maxPages)) return;
 			cursor = page.nextCursor ?? undefined;
+			if (cursor !== undefined) {
+				if (seen.has(cursor)) {
+					throw new UnexpectedResponseError(
+						`Trading 212 returned the same next page of ${this.#endpoint.id} twice; stopped rather than loop.`,
+						{ request: { method: this.#endpoint.method, path: this.#endpoint.path, endpoint: this.#endpoint.id } },
+					);
+				}
+				seen.add(cursor);
+			}
 			try {
-				page = await page.next({ ...(rest.signal && { signal: rest.signal }) });
+				page = await page.next(call);
 			} catch (error) {
 				throw attachCursor(error, cursor);
 			}

@@ -139,10 +139,17 @@ export class RateLimiter {
 		if (info.periodMs !== undefined && info.periodMs > 0) bucket.periodMs = info.periodMs;
 		if (info.resetAt !== undefined && info.resetAt > now) {
 			if (info.remaining === 0) bucket.blockedUntil = Math.max(bucket.blockedUntil, info.resetAt);
-			if (info.remaining !== undefined && now < bucket.windowEndsAt) {
+			// Only the window in progress: a bucket already booked into a later window must not inherit this one's count.
+			if (info.remaining !== undefined && bucket.windowStartsAt <= now && now < bucket.windowEndsAt) {
 				bucket.remaining = Math.min(bucket.remaining, info.remaining);
 			}
 		}
+	}
+
+	/** How long the endpoint is closed for after a 429 or an empty budget, in milliseconds. */
+	blockedFor(endpoint: EndpointDefinition, now: number): number {
+		if (this.#mode === "off") return 0;
+		return Math.max(0, this.#bucket(endpoint).blockedUntil - now);
 	}
 
 	/** Records a 429: nothing more is sent to the endpoint until the reset. */

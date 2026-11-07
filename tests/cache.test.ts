@@ -71,3 +71,32 @@ describe("CachedLoader", () => {
 		]);
 	});
 });
+
+describe("CachedLoader and abort signals", () => {
+	/** One caller giving up must not fail everyone else waiting for the same download. */
+	it("lets each caller stop waiting without failing the others", async () => {
+		const loader = new CachedLoader(new MemoryCache());
+		const load = () =>
+			new Promise<string>((resolve) => {
+				setTimeout(() => {
+					resolve("done");
+				}, 10);
+			});
+		const controller = new AbortController();
+		const first = loader.load("k", 1000, false, load, controller.signal);
+		const second = loader.load("k", 1000, false, load);
+		controller.abort(new Error("first gave up"));
+		await expect(first).rejects.toThrow("first gave up");
+		await expect(second).resolves.toBe("done");
+		await expect(loader.load("k", 1000, false, load, AbortSignal.abort(new Error("already")))).rejects.toThrow(
+			"already",
+		);
+
+		const later = new AbortController();
+		const starter = loader.load("j", 1000, false, load);
+		const joiner = loader.load("j", 1000, false, load, later.signal);
+		later.abort(new Error("joiner gave up"));
+		await expect(joiner).rejects.toThrow("joiner gave up");
+		await expect(starter).resolves.toBe("done");
+	});
+});

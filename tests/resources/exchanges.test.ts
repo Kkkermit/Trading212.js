@@ -81,3 +81,19 @@ describe("sessionAt with simultaneous events", () => {
 		expect(sessionAt([...events].reverse(), new Date("2026-11-09T21:30:00Z")).session).toBe("afterHours");
 	});
 });
+
+describe("sessionAt during a break", () => {
+	it("names the end of the break as the next open", () => {
+		const events = [
+			{ type: "OPEN", date: "2026-11-09T08:00:00Z" },
+			{ type: "BREAK_START", date: "2026-11-09T11:30:00Z" },
+			{ type: "BREAK_END", date: "2026-11-09T12:30:00Z" },
+			{ type: "CLOSE", date: "2026-11-09T16:30:00Z" },
+			{ type: "OPEN", date: "2026-11-10T08:00:00Z" },
+		];
+		expect(sessionAt(events, new Date("2026-11-09T12:00:00Z"))).toMatchObject({
+			session: "closed",
+			nextOpen: new Date("2026-11-09T12:30:00Z"),
+		});
+	});
+});

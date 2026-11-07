@@ -122,7 +122,7 @@ export function errorFromResponse(context: ResponseContext): Trading212Error {
 
 	switch (status) {
 		case 400: {
-			const rejection = findRejection(searchable);
+			const rejection = kind === "trade" ? findRejection(searchable) : undefined;
 			if (rejection) {
 				return new OrderRejectedError(message, {
 					...details,

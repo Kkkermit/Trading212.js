@@ -74,8 +74,16 @@ function issuesFor(type: OrderType, fields: Fields, signed: "positive" | "any"):
 	return issues;
 }
 
+const ORDER_TYPES = new Set<string>(["market", "limit", "stop", "stopLimit"]);
+
 /** Checks an order before it is sent, and throws one `ValidationError` naming every problem. */
 export function validateOrder(type: OrderType, fields: Fields, signed: "positive" | "any" = "any"): void {
+	if (!ORDER_TYPES.has(type)) {
+		throw new ValidationError(`"${type}" is not an order type.`, {
+			issues: [{ field: "type", message: 'must be "market", "limit", "stop" or "stopLimit"' }],
+			hint: "Nothing was sent.",
+		});
+	}
 	const issues = issuesFor(type, fields, signed);
 	if (issues.length === 0) return;
 	const summary = issues.map((issue) => `${issue.field} ${issue.message}`).join("; ");

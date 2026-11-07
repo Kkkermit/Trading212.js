@@ -155,15 +155,26 @@ export class ReportsResource {
 				issues: [{ field: "downloadLink", message: "must be https" }],
 			});
 		}
-		const timeout = AbortSignal.timeout(options.timeoutMs ?? Math.max(this.#context.timeoutMs, 120_000));
+		const timeoutMs = options.timeoutMs ?? Math.max(this.#context.timeoutMs, 120_000);
+		const timeout = AbortSignal.timeout(timeoutMs);
 		const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
 		const where = stripQuery(url.toString());
+		// The cause is left off: some fetch implementations put the URL, signature and all, in their messages.
+		const failed = (error: unknown): Error => {
+			if (options.signal?.aborted) return options.signal.reason as Error;
+			const name = error instanceof Error ? error.name : "Error";
+			if (timeout.aborted)
+				return new TimeoutError(`Downloading the report from ${where} took longer than ${timeoutMs} ms.`);
+			return new NetworkError(`Could not download the report from ${where} (${name}).`, {
+				sent: true,
+				hint: "Try again: downloading does not change anything.",
+			});
+		};
 		let response: Response;
 		try {
 			response = await this.#context.fetch(url.toString(), { method: "GET", signal });
 		} catch (error) {
-			if (options.signal?.aborted) throw options.signal.reason as Error;
-			throw new NetworkError(`Could not download the report from ${where}.`, { sent: true, cause: error });
+			throw failed(error);
 		}
 		if (!response.ok) {
 			throw new UnexpectedResponseError(`Downloading the report from ${where} failed with ${response.status}.`, {
@@ -171,7 +182,11 @@ export class ReportsResource {
 				hint: "Signed links expire. Fetch a fresh one with reports.list().",
 			});
 		}
-		return response.text();
+		try {
+			return await response.text();
+		} catch (error) {
+			throw failed(error);
+		}
 	}
 
 	/**
@@ -182,8 +197,10 @@ export class ReportsResource {
 	 * const { csv } = await t212.reports.export({ from: "2026-01-01", to: "2026-06-30" });
 	 */
 	async export(request: ReportRequest, options: ReportWaitOptions = {}): Promise<ExportResult> {
-		const reportId = await this.request(request, options);
+		// timeoutMs here bounds the wait; the request and the download keep their own timeouts.
+		const call = options.signal ? { signal: options.signal } : {};
+		const reportId = await this.request(request, call);
 		const report = await this.waitFor(reportId, options);
-		return { report, csv: await this.download(report, options) };
+		return { report, csv: await this.download(report, call) };
 	}
 }

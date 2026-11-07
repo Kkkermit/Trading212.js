@@ -14,8 +14,9 @@ export interface Trading212Options {
 	/** The secret shown once when the key was made. */
 	apiSecret: string;
 	/**
-	 * Whether this client may place, cancel or change anything. Defaults to `enabled` on demo and `disabled` on live,
-	 * so a live client only reads until you say otherwise.
+	 * Whether this client may place, cancel or change anything. Defaults to `enabled` on Trading 212's demo host and
+	 * `disabled` everywhere else, so a live client, or one behind a custom `baseUrl`, only reads until you say otherwise.
+	 * `disabled` is honoured on demo too.
 	 */
 	trading?: "enabled" | "disabled";
 	/** Per-request timeout. Default 15 s. */
@@ -109,6 +110,14 @@ function resolveOrigin(baseUrl: string | undefined, environment: Environment): {
 	if (url.search || url.hash || (url.pathname !== "/" && url.pathname !== "")) {
 		fail("baseUrl", "baseUrl must be an origin only, such as https://demo.trading212.com, with no path.");
 	}
+	const other = environment === "demo" ? "live" : "demo";
+	if (url.origin === BASE_URLS[other]) {
+		fail(
+			"baseUrl",
+			`baseUrl is Trading 212's ${other} host, but environment is "${environment}".`,
+			`Set environment to "${other}" instead of pointing baseUrl at it.`,
+		);
+	}
 	return { origin: url.origin, official: url.origin === official };
 }
 
@@ -164,7 +173,8 @@ export function resolveOptions(options: Trading212Options): ResolvedOptions {
 		environment: options.environment,
 		apiKey,
 		apiSecret,
-		trading: options.trading ?? (options.environment === "demo" ? "enabled" : "disabled"),
+		// Only Trading 212's own demo host may trade by default: a proxy could forward anywhere, including live.
+		trading: options.trading ?? (options.environment === "demo" && official ? "enabled" : "disabled"),
 		timeoutMs: positiveMs("timeoutMs", options.timeoutMs, 15_000, 600_000),
 		retry,
 		rateLimit: options.rateLimit ?? "pace",

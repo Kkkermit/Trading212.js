@@ -68,7 +68,20 @@ export interface DryRunResult {
 	readonly wouldSend: boolean;
 }
 
-export type Placed<O extends PlaceOptions | undefined> = O extends { dryRun: true } ? DryRunResult : Order;
+/** An `Order`, a `DryRunResult` for `{ dryRun: true }`, or either when `dryRun` is only known at run time. */
+export type Placed<O extends PlaceOptions | undefined> = O extends { dryRun: true }
+	? DryRunResult
+	: O extends undefined
+		? Order
+		: "dryRun" extends keyof O
+			? true extends NonNullable<O["dryRun"]>
+				? Order | DryRunResult
+				: Order
+			: Order;
+
+interface NoDryRun {
+	dryRun?: false;
+}
 
 export interface WaitOptions extends CallOptions {
 	/** Give up after this long. Default 60 s. */
@@ -161,7 +174,7 @@ export class OrdersResource {
 	 *
 	 * Scope `orders:execute` · 50 requests / minute.
 	 */
-	async market<O extends PlaceOptions>(request: MarketOrderRequest, options?: O): Promise<Placed<O>> {
+	async market<O extends PlaceOptions = NoDryRun>(request: MarketOrderRequest, options?: O): Promise<Placed<O>> {
 		return this.#place("market", request, options);
 	}
 
@@ -170,7 +183,7 @@ export class OrdersResource {
 	 *
 	 * Scope `orders:execute` · 1 request / 2 s.
 	 */
-	async limit<O extends PlaceOptions>(request: LimitOrderRequest, options?: O): Promise<Placed<O>> {
+	async limit<O extends PlaceOptions = NoDryRun>(request: LimitOrderRequest, options?: O): Promise<Placed<O>> {
 		return this.#place("limit", request, options);
 	}
 
@@ -179,7 +192,7 @@ export class OrdersResource {
 	 *
 	 * Scope `orders:execute` · 1 request / 2 s.
 	 */
-	async stop<O extends PlaceOptions>(request: StopOrderRequest, options?: O): Promise<Placed<O>> {
+	async stop<O extends PlaceOptions = NoDryRun>(request: StopOrderRequest, options?: O): Promise<Placed<O>> {
 		return this.#place("stop", request, options);
 	}
 
@@ -188,7 +201,7 @@ export class OrdersResource {
 	 *
 	 * Scope `orders:execute` · 1 request / 2 s.
 	 */
-	async stopLimit<O extends PlaceOptions>(request: StopLimitOrderRequest, options?: O): Promise<Placed<O>> {
+	async stopLimit<O extends PlaceOptions = NoDryRun>(request: StopLimitOrderRequest, options?: O): Promise<Placed<O>> {
 		return this.#place("stopLimit", request, options);
 	}
 
@@ -199,7 +212,7 @@ export class OrdersResource {
 	 * await t212.orders.buy({ ticker: "AAPL_US_EQ", quantity: 0.5 });
 	 * await t212.orders.buy({ type: "limit", ticker: "AAPL_US_EQ", quantity: 1, limitPrice: 180, timeValidity: "DAY" });
 	 */
-	async buy<O extends PlaceOptions>(input: OrderInput, options?: O): Promise<Placed<O>> {
+	async buy<O extends PlaceOptions = NoDryRun>(input: OrderInput, options?: O): Promise<Placed<O>> {
 		const { type = "market", ...fields } = input;
 		validateOrder(type, fields, "positive");
 		return this.#place(type, fields, options);
@@ -211,7 +224,7 @@ export class OrdersResource {
 	 * @example
 	 * await t212.orders.sell({ type: "stop", ticker: "AAPL_US_EQ", quantity: 1, stopPrice: 150, timeValidity: "GOOD_TILL_CANCEL" });
 	 */
-	async sell<O extends PlaceOptions>(input: OrderInput, options?: O): Promise<Placed<O>> {
+	async sell<O extends PlaceOptions = NoDryRun>(input: OrderInput, options?: O): Promise<Placed<O>> {
 		const { type = "market", ...fields } = input;
 		validateOrder(type, fields, "positive");
 		return this.#place(type, { ...fields, quantity: -fields.quantity }, options);
@@ -221,7 +234,7 @@ export class OrdersResource {
 	 * Sells everything you can of one holding at market: `quantityAvailableForTrading`, cut to 4 decimal places so it
 	 * never exceeds what you own. Shares held in pies or reserved by pending orders are left alone.
 	 */
-	async sellAll<O extends SellAllOptions>(ticker: string, options?: O): Promise<Placed<O>> {
+	async sellAll<O extends SellAllOptions = NoDryRun>(ticker: string, options?: O): Promise<Placed<O>> {
 		const { extendedHours, dryRun, ...call } = options ?? ({} as SellAllOptions);
 		const position = await this.#positions.get(ticker, call);
 		if (!position) {
@@ -229,7 +242,13 @@ export class OrdersResource {
 				issues: [{ field: "ticker", message: "not held" }],
 			});
 		}
-		const available = position.quantityAvailableForTrading ?? position.quantity ?? 0;
+		const available = position.quantityAvailableForTrading;
+		if (typeof available !== "number") {
+			throw new ValidationError(`Trading 212 did not say how much of your ${ticker} is available to sell.`, {
+				issues: [{ field: "quantityAvailableForTrading", message: "is missing from the position" }],
+				hint: "Sell an explicit quantity with orders.sell() instead.",
+			});
+		}
 		const quantity = truncateQuantity(available);
 		if (quantity <= 0) {
 			throw new ValidationError(`None of your ${ticker} is available to sell.`, {
@@ -302,7 +321,7 @@ export class OrdersResource {
 			};
 			return result as Placed<O>;
 		}
-		const { data } = await transport.request<Order>(endpoint, { ...call, body });
+		const { data } = await transport.request<Order>(endpoint, { ...call, body, expectBody: true });
 		return data as Placed<O>;
 	}
 }

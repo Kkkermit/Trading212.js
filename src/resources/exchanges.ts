@@ -21,7 +21,7 @@ export interface MarketStatus {
 	readonly since: Date | undefined;
 	/** The next scheduled change, such as the close. */
 	readonly next: { readonly event: string; readonly at: Date } | undefined;
-	/** The next regular open, if the schedule reaches that far. */
+	/** When regular trading next starts, including the end of a break, if the schedule reaches that far. */
 	readonly nextOpen: Date | undefined;
 }
 
@@ -67,7 +67,7 @@ export function sessionAt(
 		session: previous ? (SESSION_AFTER[previous.type] ?? "unknown") : "unknown",
 		since: previous?.at,
 		next: next && { event: next.type, at: next.at },
-		nextOpen: upcoming.find((event) => event.type === "OPEN")?.at,
+		nextOpen: upcoming.find((event) => SESSION_AFTER[event.type] === "regular")?.at,
 	};
 }
 
@@ -86,12 +86,18 @@ export class ExchangesResource {
 	 * Scope `metadata` · 1 request / 30 s.
 	 */
 	async list(options: ListOptions = {}): Promise<Exchange[]> {
-		const { refresh = false, ...call } = options;
+		const { refresh = false, signal } = options;
 		const { cache, cacheNamespace, metadataTtlMs, transport } = this.#context;
-		return cache.load(`${cacheNamespace}:exchanges`, metadataTtlMs, refresh, async () => {
-			const { data } = await transport.request<Exchange[] | undefined>(ENDPOINTS.listExchanges, call);
-			return Array.isArray(data) ? data : [];
-		});
+		return cache.load(
+			`${cacheNamespace}:exchanges`,
+			metadataTtlMs,
+			refresh,
+			async () => {
+				const { data } = await transport.request<Exchange[] | undefined>(ENDPOINTS.listExchanges);
+				return Array.isArray(data) ? data : [];
+			},
+			signal,
+		);
 	}
 
 	/**

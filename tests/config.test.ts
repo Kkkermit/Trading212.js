@@ -90,6 +90,8 @@ describe("resolveOptions", () => {
 		expect(fieldOf({ ...base, baseUrl: "https://user:pass@proxy.example" })).toBe("baseUrl");
 		expect(fieldOf({ ...base, baseUrl: "https://proxy.example/api" })).toBe("baseUrl");
 		expect(fieldOf({ ...base, baseUrl: "https://proxy.example?x=1" })).toBe("baseUrl");
+		expect(fieldOf({ ...base, baseUrl: "https://live.trading212.com" })).toBe("baseUrl");
+		expect(fieldOf({ ...base, environment: "live", baseUrl: "https://demo.trading212.com" })).toBe("baseUrl");
 	});
 });
 

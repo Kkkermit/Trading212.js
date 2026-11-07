@@ -140,3 +140,27 @@ describe("PagedList", () => {
 		expect(requests[0]?.query).toEqual({ limit: "3" });
 	});
 });
+
+describe("PagedList against a misbehaving server", () => {
+	it("stops with an error when the same next page comes back twice", async () => {
+		const looping = { body: { items: [{}], nextPagePath: "limit=50&cursor=5" } };
+		const { client, requests } = scripted([looping, looping, looping, looping]);
+		await expect(Array.fromAsync(client.history.orders.all())).rejects.toThrow("returned the same next page");
+		expect(requests).toHaveLength(2);
+	});
+
+	it("keeps the caller's timeout for every page, not just the first", async () => {
+		let calls = 0;
+		const fetch = (_input: string, init: RequestInit): Promise<Response> => {
+			calls++;
+			if (calls === 1) return Promise.resolve(Response.json({ items: [{}], nextPagePath: "limit=50&cursor=2" }));
+			return new Promise((_resolve, reject) => {
+				init.signal?.addEventListener("abort", () => {
+					reject(init.signal?.reason as Error);
+				});
+			});
+		};
+		const { client } = scripted([], { fetch, retry: false });
+		await expect(Array.fromAsync(client.history.orders.all({ timeoutMs: 20 }))).rejects.toThrow("within 20 ms");
+	});
+});

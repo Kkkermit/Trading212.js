@@ -84,6 +84,8 @@ export interface RequestOptions extends CallOptions {
 	/** An already-validated query string, used to follow pagination. */
 	rawQuery?: string;
 	body?: unknown;
+	/** The endpoint always answers with a body, so an empty success is an error. */
+	expectBody?: boolean;
 }
 
 export interface TransportResponse<T> {
@@ -158,7 +160,7 @@ export class Transport {
 	}
 
 	get tradingEnabled(): boolean {
-		return this.#config.environment === "demo" || this.#config.trading === "enabled";
+		return this.#config.trading === "enabled";
 	}
 
 	get logger(): Logger {
@@ -189,7 +191,7 @@ export class Transport {
 		const { url, ...description } = this.describe(endpoint, options);
 		const config = this.#config;
 		if (endpoint.kind === "trade" && !this.tradingEnabled) {
-			throw new TradingDisabledError(`Refused to send ${description.method} ${description.path} on live.`, {
+			throw new TradingDisabledError(`Refused to send ${description.method} ${description.path}: trading is off.`, {
 				request: description,
 				hint: HINTS.tradingDisabled,
 			});
@@ -240,25 +242,32 @@ export class Transport {
 
 	async #waitForBudget(endpoint: EndpointDefinition, description: RequestDescription, signal?: AbortSignal) {
 		const config = this.#config;
-		const now = Date.now();
-		const { waitMs, booked } = config.rateLimiter.reserve(endpoint, now, config.maxRateLimitWaitMs);
-		if (!booked) {
-			throw new RateLimitError(
-				`${description.method} ${description.path} would have to wait ${Math.ceil(waitMs / 1000)} s for rate-limit budget, longer than maxRateLimitWaitMs.`,
-				{
-					request: description,
-					retryAfterMs: waitMs,
-					resetAt: now + waitMs,
-					hint: HINTS.rateLimited(endpoint.id, now + waitMs),
-				},
-			);
+		const deadline = Date.now() + config.maxRateLimitWaitMs;
+		for (;;) {
+			if (signal?.aborted) throw signal.reason as Error;
+			const now = Date.now();
+			const { waitMs, booked } = config.rateLimiter.reserve(endpoint, now, deadline - now);
+			if (!booked) {
+				throw new RateLimitError(
+					`${description.method} ${description.path} would have to wait ${Math.ceil(waitMs / 1000)} s for rate-limit budget, longer than maxRateLimitWaitMs.`,
+					{
+						request: description,
+						retryAfterMs: waitMs,
+						resetAt: now + waitMs,
+						hint: HINTS.rateLimited(endpoint.id, now + waitMs),
+					},
+				);
+			}
+			if (waitMs > 0) {
+				const message = `Waiting ${waitMs} ms for ${endpoint.id}'s rate limit.`;
+				if (waitMs >= 5000) config.logger.warn(message, { endpoint: endpoint.id, waitMs });
+				else config.logger.debug(message, { endpoint: endpoint.id, waitMs });
+				this.#hook(() => config.hooks.onRateLimitWait?.({ endpoint: endpoint.id, waitMs }));
+				await sleep(waitMs, signal);
+			}
+			// A 429 or an empty budget may have arrived while this call waited; if so, it books again after the reset.
+			if (config.rateLimiter.blockedFor(endpoint, Date.now()) <= 0) return;
 		}
-		if (waitMs <= 0) return;
-		const message = `Waiting ${waitMs} ms for ${endpoint.id}'s rate limit.`;
-		if (waitMs >= 5000) config.logger.warn(message, { endpoint: endpoint.id, waitMs });
-		else config.logger.debug(message, { endpoint: endpoint.id, waitMs });
-		this.#hook(() => config.hooks.onRateLimitWait?.({ endpoint: endpoint.id, waitMs }));
-		await sleep(waitMs, signal);
 	}
 
 	async #attempt<T>(
@@ -270,6 +279,7 @@ export class Transport {
 	): Promise<TransportResponse<T>> {
 		const config = this.#config;
 		await this.#waitForBudget(endpoint, description, options.signal);
+		// An abort that lands after the wait but before sending still means nothing was sent.
 		if (options.signal?.aborted) throw options.signal.reason as Error;
 
 		const headers: Record<string, string> = { Authorization: config.authorization, Accept: "application/json" };
@@ -302,8 +312,8 @@ export class Transport {
 		if (rateLimit) config.rateLimiter.update(endpoint, rateLimit, Date.now());
 
 		try {
-			text = await response.text();
-			if (!response.ok) text = text.slice(0, MAX_ERROR_BODY);
+			// Redacted before it is cut, so a secret straddling the cut is still found whole.
+			text = config.redact(await response.text()) as string;
 		} catch (error) {
 			// Once Trading 212 has answered, only a success, a timeout or a server error leaves a trade's outcome open.
 			const mayHaveRun = response.status < 300 || response.status === 408 || response.status >= 500;
@@ -320,10 +330,12 @@ export class Transport {
 		this.#hook(() => config.hooks.onResponse?.({ ...event, status: response.status, durationMs, rateLimit }));
 
 		if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
-			throw new UnexpectedResponseError(
-				`${description.method} ${description.path} answered with a redirect, which is never followed with your credentials.`,
-				{ status: response.status, request: description, ...(rateLimit && { rateLimit }) },
-			);
+			const message = `${description.method} ${description.path} answered with a redirect, which is never followed with your credentials.`;
+			const details = { status: response.status, request: description, ...(rateLimit && { rateLimit }) };
+			if (endpoint.kind === "trade") {
+				throw new OrderOutcomeUnknownError(message, { ...details, sent: options.body, hint: HINTS.outcomeUnknown });
+			}
+			throw new UnexpectedResponseError(message, details);
 		}
 
 		if (!response.ok) {
@@ -331,7 +343,7 @@ export class Transport {
 			throw errorFromResponse({
 				status: response.status,
 				statusText: response.statusText,
-				text: config.redact(text) as string,
+				text: text.slice(0, MAX_ERROR_BODY),
 				request: description,
 				kind: endpoint.kind,
 				environment: config.environment,
@@ -341,20 +353,46 @@ export class Transport {
 			});
 		}
 
-		return { data: this.#parse(text, description, response.status) as T, status: response.status, rateLimit };
+		return {
+			data: this.#parse(text, endpoint, description, options, response.status) as T,
+			status: response.status,
+			rateLimit,
+		};
 	}
 
-	#parse(text: string, description: RequestDescription, status: number): unknown {
-		if (!text.trim()) return undefined;
+	#parse(
+		text: string,
+		endpoint: EndpointDefinition,
+		description: RequestDescription,
+		options: RequestOptions,
+		status: number,
+	): unknown {
+		const where = `${description.method} ${description.path}`;
+		// Trading 212 answered with a success, so a trade it cannot describe has very likely gone through.
+		const unreadable = (message: string, cause?: unknown): Error =>
+			endpoint.kind === "trade"
+				? new OrderOutcomeUnknownError(`${where} succeeded (${status}) but ${message}.`, {
+						status,
+						request: description,
+						sent: options.body,
+						body: text.slice(0, 2000),
+						hint: HINTS.outcomeUnknown,
+						cause,
+					})
+				: new UnexpectedResponseError(`${where} ${message}.`, {
+						status,
+						request: description,
+						body: text.slice(0, 2000),
+						cause,
+					});
+		if (!text.trim()) {
+			if (options.expectBody) throw unreadable("returned an empty body");
+			return undefined;
+		}
 		try {
 			return JSON.parse(text);
 		} catch (error) {
-			throw new UnexpectedResponseError(`${description.method} ${description.path} returned a body that is not JSON.`, {
-				status,
-				request: description,
-				body: this.#config.redact(text.slice(0, 2000)),
-				cause: error,
-			});
+			throw unreadable("returned a body that is not JSON", error);
 		}
 	}
 
