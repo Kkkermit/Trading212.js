@@ -193,7 +193,7 @@ function generateEndpoints(spec: Spec, overrides: Overrides): { code: string; wa
 		if (!seen.has(key)) warnings.push(`The override for ${key} names an endpoint the spec no longer has.`);
 	}
 	entries.sort();
-	const code = `${HEADER}import type { EndpointDefinition } from "./endpoint";\n\nexport const SPEC_VERSION = ${JSON.stringify(spec.info.version)};\n\nexport const ENDPOINTS = {\n${entries.join("\n")}\n} as const satisfies Record<string, EndpointDefinition>;\n\nexport type EndpointId = keyof typeof ENDPOINTS;\n`;
+	const code = `${HEADER}import { type EndpointDefinition, freezeEndpoints } from "./endpoint";\n\nexport const SPEC_VERSION = ${JSON.stringify(spec.info.version)};\n\nconst DEFINITIONS = {\n${entries.join("\n")}\n} as const satisfies Record<string, EndpointDefinition>;\n\n/** Every endpoint in the spec, frozen so nothing at run time can turn a trade into a read. */\nexport const ENDPOINTS: typeof DEFINITIONS = freezeEndpoints(DEFINITIONS);\n\nexport type EndpointId = keyof typeof ENDPOINTS;\n`;
 	return { code, warnings };
 }
 
