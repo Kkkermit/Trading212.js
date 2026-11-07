@@ -1,0 +1,12 @@
+/* The logo's blue as the accent, deepened in the light theme so links keep 4.5:1 contrast on white. */
+:root {
+	--sl-color-accent-low: #003449;
+	--sl-color-accent: #00bafc;
+	--sl-color-accent-high: #b8ecff;
+}
+
+:root[data-theme="light"] {
+	--sl-color-accent-low: #c9f0ff;
+	--sl-color-accent: #00729e;
+	--sl-color-accent-high: #00344a;
+}

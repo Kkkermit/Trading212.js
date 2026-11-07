@@ -14,8 +14,14 @@ export default defineConfig({
 			title: "trading212.js",
 			description:
 				"An unofficial TypeScript client for the Trading 212 Public API: safe around real money, clear when things go wrong, with a fake Trading 212 for tests.",
-			logo: { src: "./src/assets/logo.svg", replacesTitle: false },
+			logo: {
+				light: "./src/assets/logo-light.svg",
+				dark: "./src/assets/logo-dark.svg",
+				alt: "trading212.js",
+				replacesTitle: true,
+			},
 			favicon: "/favicon.svg",
+			customCss: ["./src/styles/theme.css"],
 			social: [{ icon: "github", label: "GitHub", href: repository }],
 			editLink: { baseUrl: `${repository}/edit/main/docs/` },
 			lastUpdated: true,

@@ -1,4 +1,4 @@
-# trading212.js
+<h1><img src="docs/public/logo.svg" alt="trading212.js" height="64"></h1>
 
 [![CI](https://github.com/Kkkermit/Trading212.js/actions/workflows/ci.yml/badge.svg)](https://github.com/Kkkermit/Trading212.js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@kkermit/trading212.js)](https://www.npmjs.com/package/@kkermit/trading212.js)
