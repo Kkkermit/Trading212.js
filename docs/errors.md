@@ -129,6 +129,8 @@ refused to follow with your credentials.
 
 ## Error bodies
 
-Trading 212's spec documents no error body. `parseErrorBody()` reads every shape seen in practice: problem details
+Trading 212's spec documents no error body, and the shapes below have not yet been confirmed against the API. They
+are the ones other clients report, and `parseErrorBody()` reads them all, so an unknown shape still gives a useful
+error: problem details
 (`{ type, title, status, detail }`), `{ code, clarification }`, `{ code, message }`, plain text and empty. Bodies are
 redacted before they are kept.

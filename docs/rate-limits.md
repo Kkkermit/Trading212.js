@@ -22,7 +22,7 @@ headers said.
 
 ## Modes
 
-- **`pace`** (default) spreads calls evenly, so the fifth `positions.list()` in a second waits rather than failing.
+- **`pace`** (default) spreads calls evenly, so a second `positions.list()` within the same second waits rather than failing.
   Trading 212 recommends this.
 - **`burst`** spends a period's whole allowance at once, then waits for the reset. Faster for short bursts.
 - **`off`** sends immediately. A 429 still retries reads after the reset.

@@ -35,7 +35,7 @@ convention that **a negative quantity sells**.
 | `stop`      | as a market order once the price reaches `stopPrice`     | `stopPrice`, `timeValidity`               | 1 / 2 s     |
 | `stopLimit` | as a limit order at `limitPrice` once `stopPrice` is hit | `stopPrice`, `limitPrice`, `timeValidity` | 1 / 2 s     |
 
-`timeValidity` is `"DAY"` (expires at the end of the trading day) or `"GOOD_TILL_CANCEL"`. It is always required on
+`timeValidity` is `"DAY"` (expires at midnight in the exchange's time zone) or `"GOOD_TILL_CANCEL"`. It is always required on
 non-market orders, because the sources disagree on Trading 212's default. `extendedHours` is allowed on market orders
 only.
 
@@ -87,15 +87,19 @@ settled.status; // FILLED, CANCELLED, REJECTED or REPLACED
 ```
 
 `waitFor` polls the pending order once a second (its rate limit). Once the order stops being pending, Trading 212
-answers 404, so it looks the order up in the history instead. After `timeoutMs` it throws `TimeoutError`, and the
-order may still fill.
+answers 404, so from then on it looks the order up in the history instead, which needs the `history:orders`
+permission. `timeoutMs` bounds the whole wait, including waits for rate-limit budget; after it, `waitFor` throws
+`TimeoutError`, and the order may still fill.
 
 ## Pending orders and cancelling
 
 ```ts
-const pending = await t212.orders.list();
-const one = await t212.orders.get(pending[0].id!);
-await t212.orders.cancel(one.id!);
+const [first] = await t212.orders.list();
+if (first?.id !== undefined) {
+	const one = await t212.orders.get(first.id);
+	await t212.orders.cancel(first.id);
+	console.log(one.status);
+}
 ```
 
 A successful cancel means Trading 212 accepted the request; the order can still fill first. Cancelling an order that

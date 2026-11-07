@@ -42,11 +42,11 @@ In the Trading 212 app, open **Settings > API (Beta)** and generate a key.
   | Permission             | Lets the key                                  |
   | ---------------------- | --------------------------------------------- |
   | `account`              | read the account summary (needed by `verify`) |
-  | `portfolio`            | read positions                                |
+  | `portfolio`            | read positions (needed by `sellAll`)          |
   | `metadata`             | read instruments and exchanges                |
   | `orders:read`          | read pending orders                           |
   | `orders:execute`       | place and cancel orders                       |
-  | `history:orders`       | read order history                            |
+  | `history:orders`       | read order history (needed by `waitFor`)      |
   | `history:dividends`    | read dividends                                |
   | `history:transactions` | read deposits, withdrawals, fees and interest |
   | `pies:read`            | read pies (deprecated)                        |

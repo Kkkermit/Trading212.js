@@ -13,10 +13,10 @@ new Trading212({ ...options, logger: consoleLogger({ level: "info" }) }); // "[t
 new Trading212({ ...options, logger: fieldsFirst(pino()) }); // pino and bunyan take (fields, message)
 ```
 
-| Level   | What                                                                                   |
-| ------- | -------------------------------------------------------------------------------------- |
-| `debug` | Every request and response: endpoint, status, duration, remaining budget; short waits  |
-| `warn`  | Retries, rate-limit waits of 5 s or more, deprecated endpoints, a non-Trading 212 host |
+| Level   | What                                                                                                          |
+| ------- | ------------------------------------------------------------------------------------------------------------- |
+| `debug` | Every request and response: endpoint, status, duration, remaining budget; short waits                         |
+| `warn`  | Retries, rate-limit waits of 5 s or more, deprecated endpoints, a non-Trading 212 host, a failing cache store |
 
 The library never logs at `error`: it throws, and you decide what to log. Bodies are never logged. A logger that
 throws cannot break a request.

@@ -1,7 +1,8 @@
 # Data
 
-All amounts are in the account's **primary currency**: the API does not support multi-currency accounts. Prices of
-UK instruments quoted in GBX are in pence. Every field in a response is typed as optional, because the API omits
+Totals, values and dividends are in the account's **primary currency**. Prices per share (`averagePricePaid`,
+`currentPrice`) are in the instrument's currency, and a transaction's `amount` is in its own `currency`. Prices of UK
+instruments quoted in GBX are in pence. Every field in a response is typed as optional, because the API omits
 fields freely.
 
 ## Account and portfolio
@@ -97,7 +98,7 @@ const text = await t212.reports.download(ready);
 ```
 
 Listing reports is limited to once a minute, so `export()` takes at least a minute. Downloads go to a signed link
-**without** your credentials. Trading 212 may notify the account's app of each export. On demo, every export call
+**without** your credentials. On demo, every export call
 throws `NotAvailableInDemoError`.
 
 Parse the CSV with the small parser in its own entry point:

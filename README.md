@@ -36,7 +36,7 @@ await t212.orders.waitFor(order); // FILLED
   and a test suite proves it by echoing them back from a hostile server. Redirects are refused, pagination links
   are pinned to Trading 212's host, and signed download links never receive your key.
 - **Rate limits are handled.** Every endpoint has its own budget, generated from the official spec, corrected from
-  the response headers, and shared by every client for the same account in your process. Calls are paced the way
+  the response headers, and shared by every client using the same key in your process. Calls are paced the way
   Trading 212 recommends, so you should not see a 429.
 - **Common tasks take one call.** Turn "Apple" into `AAPL_US_EQ`, sell a whole position without the
   4-decimal-place error, wait for an order to fill, export a year of history as CSV in one call, check whether a
@@ -116,40 +116,41 @@ for await (const dividend of t212.history.dividends.all()) {
 Every one of the 22 operations in Trading 212's Public API, on both of its environments. A test fails the build if
 the official spec gains an operation this library does not implement.
 
-| Environment | Host                          | What it is                                              |
-| ----------- | ----------------------------- | ------------------------------------------------------- |
-| `demo`      | `https://demo.trading212.com` | Paper trading with practice money. Trading is on.       |
-| `live`      | `https://live.trading212.com` | Your real account ("prod"). Read-only until you opt in. |
+| Environment | Host                          | What it is                                               |
+| ----------- | ----------------------------- | -------------------------------------------------------- |
+| `demo`      | `https://demo.trading212.com` | Paper trading with practice money. Trading is on.        |
+| `live`      | `https://live.trading212.com` | Your real account ("prod"). No trading until you opt in. |
 
 There is no third environment: "production" and "real" mean `live`, and "paper", "practice" and "sandbox" mean
 `demo`. The client asks you to name one of the two and never guesses.
 
-| Method                                            | Endpoint                           | Permission             | Limit    |
-| ------------------------------------------------- | ---------------------------------- | ---------------------- | -------- |
-| `account.summary()`                               | `GET /equity/account/summary`      | `account`              | 1 / 5 s  |
-| `positions.list()`, `positions.get()`             | `GET /equity/positions`            | `portfolio`            | 1 / 1 s  |
-| `instruments.list()`, `search()`, `resolve()`     | `GET /equity/metadata/instruments` | `metadata`             | 1 / 50 s |
-| `exchanges.list()`, `exchanges.status()`          | `GET /equity/metadata/exchanges`   | `metadata`             | 1 / 30 s |
-| `orders.list()`                                   | `GET /equity/orders`               | `orders:read`          | 1 / 5 s  |
-| `orders.get()`, `orders.waitFor()`                | `GET /equity/orders/{id}`          | `orders:read`          | 1 / 1 s  |
-| `orders.cancel()`                                 | `DELETE /equity/orders/{id}`       | `orders:execute`       | 50 / min |
-| `orders.market()`, `buy()`, `sell()`, `sellAll()` | `POST /equity/orders/market`       | `orders:execute`       | 50 / min |
-| `orders.limit()`                                  | `POST /equity/orders/limit`        | `orders:execute`       | 1 / 2 s  |
-| `orders.stop()`                                   | `POST /equity/orders/stop`         | `orders:execute`       | 1 / 2 s  |
-| `orders.stopLimit()`                              | `POST /equity/orders/stop_limit`   | `orders:execute`       | 1 / 2 s  |
-| `history.orders.list()`, `.all()`                 | `GET /equity/history/orders`       | `history:orders`       | 20 / min |
-| `history.dividends.list()`, `.all()`              | `GET /equity/history/dividends`    | `history:dividends`    | 20 / min |
-| `history.transactions.list()`, `.all()`           | `GET /equity/history/transactions` | `history:transactions` | 20 / min |
-| `reports.list()`, `reports.waitFor()`             | `GET /equity/history/exports`      | not stated in the spec | 1 / min  |
-| `reports.request()`, `reports.export()`           | `POST /equity/history/exports`     | not stated in the spec | 1 / 30 s |
-| `pies.list()`                                     | `GET /equity/pies`                 | `pies:read`            | 1 / 30 s |
-| `pies.get()`                                      | `GET /equity/pies/{id}`            | `pies:read`            | 1 / 5 s  |
-| `pies.create()`                                   | `POST /equity/pies`                | `pies:write`           | 1 / 5 s  |
-| `pies.update()`                                   | `POST /equity/pies/{id}`           | `pies:write`           | 1 / 5 s  |
-| `pies.duplicate()`                                | `POST /equity/pies/{id}/duplicate` | `pies:write`           | 1 / 5 s  |
-| `pies.delete()`                                   | `DELETE /equity/pies/{id}`         | `pies:write`           | 1 / 5 s  |
+| Method                                             | Endpoint                           | Permission             | Limit    |
+| -------------------------------------------------- | ---------------------------------- | ---------------------- | -------- |
+| `account.summary()`                                | `GET /equity/account/summary`      | `account`              | 1 / 5 s  |
+| `positions.list()`, `positions.get()`              | `GET /equity/positions`            | `portfolio`            | 1 / 1 s  |
+| `instruments.list()`, `search()`, `resolve()`      | `GET /equity/metadata/instruments` | `metadata`             | 1 / 50 s |
+| `exchanges.list()`, `exchanges.status()`           | `GET /equity/metadata/exchanges`   | `metadata`             | 1 / 30 s |
+| `orders.list()`                                    | `GET /equity/orders`               | `orders:read`          | 1 / 5 s  |
+| `orders.get()`, `orders.waitFor()`¹                | `GET /equity/orders/{id}`          | `orders:read`          | 1 / 1 s  |
+| `orders.cancel()`                                  | `DELETE /equity/orders/{id}`       | `orders:execute`       | 50 / min |
+| `orders.market()`, `buy()`, `sell()`, `sellAll()`² | `POST /equity/orders/market`       | `orders:execute`       | 50 / min |
+| `orders.limit()`                                   | `POST /equity/orders/limit`        | `orders:execute`       | 1 / 2 s  |
+| `orders.stop()`                                    | `POST /equity/orders/stop`         | `orders:execute`       | 1 / 2 s  |
+| `orders.stopLimit()`                               | `POST /equity/orders/stop_limit`   | `orders:execute`       | 1 / 2 s  |
+| `history.orders.list()`, `.all()`                  | `GET /equity/history/orders`       | `history:orders`       | 20 / min |
+| `history.dividends.list()`, `.all()`               | `GET /equity/history/dividends`    | `history:dividends`    | 20 / min |
+| `history.transactions.list()`, `.all()`            | `GET /equity/history/transactions` | `history:transactions` | 20 / min |
+| `reports.list()`, `reports.waitFor()`              | `GET /equity/history/exports`      | not stated in the spec | 1 / min  |
+| `reports.request()`, `reports.export()`            | `POST /equity/history/exports`     | not stated in the spec | 1 / 30 s |
+| `pies.list()`                                      | `GET /equity/pies`                 | `pies:read`            | 1 / 30 s |
+| `pies.get()`                                       | `GET /equity/pies/{id}`            | `pies:read`            | 1 / 5 s  |
+| `pies.create()`                                    | `POST /equity/pies`                | `pies:write`           | 1 / 5 s  |
+| `pies.update()`                                    | `POST /equity/pies/{id}`           | `pies:write`           | 1 / 5 s  |
+| `pies.duplicate()`                                 | `POST /equity/pies/{id}/duplicate` | `pies:write`           | 1 / 5 s  |
+| `pies.delete()`                                    | `DELETE /equity/pies/{id}`         | `pies:write`           | 1 / 5 s  |
 
-Paths are under `/api/v0`. `portfolio.snapshot()` combines the account summary and positions. Trading 212 offers
+¹ Also needs `history:orders`, to find the order once it has left the pending list. ² `sellAll()` also needs
+`portfolio`, to read the position. Paths are under `/api/v0`. `portfolio.snapshot()` combines the account summary and positions. Trading 212 offers
 CSV exports on live only, and has deprecated the pie endpoints, which still work. The exported `ENDPOINTS` table holds
 the same facts at run time. See the [guides](#guides) for each part.
 
@@ -262,9 +263,9 @@ server.failNext("getAccountSummary", { status: 503 }); // or { network: "ECONNRE
 ## Status
 
 Version 0.x while the API is in beta. Types and endpoint metadata are generated from Trading 212's OpenAPI spec, and
-a weekly job checks for changes. A few behaviours the spec does not document (error body shapes, demo-only
-refusals) are handled defensively and checked against the real demo API by the contract tests in
-`tests/contract`.
+a weekly job checks for changes. A few behaviours the spec does not document, chiefly the shape of error bodies, are handled
+defensively and not yet confirmed against the real API. The contract tests in `tests/contract` check the rest
+against demo when run with a demo key.
 
 ## Contributing and security
 
