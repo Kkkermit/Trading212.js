@@ -28,7 +28,21 @@ export interface ConsoleLike {
 	error(...args: unknown[]): void;
 }
 
-/** Writes `[trading212] message {fields}` to the console, dropping anything below `level` (default `info`). */
+/** Writes fields as `key=value`, quoting a value that has spaces or is not a string. */
+function formatFields(fields: LogFields): string {
+	return Object.entries(fields)
+		.filter(([, value]) => value !== undefined)
+		.map(([key, value]) => {
+			const bare = typeof value === "string" && /^[^\s"=]+$/.test(value);
+			return `${key}=${bare ? value : JSON.stringify(value)}`;
+		})
+		.join(" ");
+}
+
+/**
+ * Writes one line per event, such as `[trading212] WARN  Retrying GET … in 500 ms. endpoint=getAccountSummary`, and
+ * drops anything below `level` (default `info`).
+ */
 export function consoleLogger(options: { level?: LogLevel; console?: ConsoleLike } = {}): Logger {
 	const threshold = LEVELS[options.level ?? "info"];
 	const target: ConsoleLike = options.console ?? console;
@@ -36,8 +50,8 @@ export function consoleLogger(options: { level?: LogLevel; console?: ConsoleLike
 		(level: LogLevel) =>
 		(message: string, fields?: LogFields): void => {
 			if (LEVELS[level] < threshold) return;
-			if (fields && Object.keys(fields).length > 0) target[level](`[trading212] ${message}`, fields);
-			else target[level](`[trading212] ${message}`);
+			const extra = fields ? formatFields(fields) : "";
+			target[level](`[trading212] ${level.toUpperCase().padEnd(5)} ${message}${extra ? ` ${extra}` : ""}`);
 		};
 	return { debug: write("debug"), info: write("info"), warn: write("warn"), error: write("error") };
 }

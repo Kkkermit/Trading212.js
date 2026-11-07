@@ -1,5 +1,6 @@
 import type { Environment } from "../environment";
 import {
+	isTrading212Error,
 	NetworkError,
 	OrderOutcomeUnknownError,
 	RateLimitError,
@@ -199,9 +200,15 @@ export class Transport {
 			try {
 				return await this.#attempt<T>(endpoint, url, description, options, attempt);
 			} catch (error) {
-				if (attempt >= maxAttempts || !isRetryable(error) || !config.retry) throw error;
-				const delayMs = retryDelay(attempt, config.retry, error);
-				if (delayMs > config.maxRateLimitWaitMs) throw error;
+				const { retry } = config;
+				const delayMs =
+					retry && attempt < maxAttempts && isRetryable(error)
+						? retryDelay(attempt, retry, error)
+						: Number.POSITIVE_INFINITY;
+				if (delayMs > config.maxRateLimitWaitMs) {
+					this.#logFailure(endpoint, description, error);
+					throw error;
+				}
 				const event = { ...this.#event(description, attempt), delayMs, error: error as Trading212Error };
 				config.logger.warn(`Retrying ${description.method} ${description.path} in ${delayMs} ms.`, {
 					endpoint: endpoint.id,
@@ -213,6 +220,28 @@ export class Transport {
 				await sleep(delayMs, options.signal);
 			}
 		}
+	}
+
+	// Anything that changes the account is logged at info, so a default logger keeps a record of every order.
+	#logFailure(endpoint: EndpointDefinition, description: RequestDescription, error: unknown): void {
+		const where = `${description.method} ${description.path}`;
+		const known = isTrading212Error(error);
+		const fields = {
+			endpoint: endpoint.id,
+			...(known && { code: error.code, status: error.status, apiCode: error.apiCode, hint: error.hint }),
+		};
+		if (error instanceof OrderOutcomeUnknownError) {
+			this.#config.logger.warn(
+				`${where} may or may not have gone through. Check orders.list() before sending it again.`,
+				fields,
+			);
+			return;
+		}
+		// The library's own errors already name the request; anything else, such as an abort reason, is given it.
+		const message = known
+			? error.message
+			: `${where} failed: ${error instanceof Error ? error.message : String(error)}`;
+		this.#config.logger[endpoint.kind === "read" ? "debug" : "info"](message, fields);
 	}
 
 	#event(description: RequestDescription, attempt: number): RequestEvent {
@@ -281,7 +310,8 @@ export class Transport {
 		const timeout = AbortSignal.timeout(timeoutMs);
 		const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
 		const event = this.#event(description, attempt);
-		config.logger.debug(`${description.method} ${description.path}`, { endpoint: endpoint.id, attempt });
+		const level = endpoint.kind === "read" ? "debug" : "info";
+		config.logger[level](`Sending ${description.method} ${description.path}`, { endpoint: endpoint.id, attempt });
 		this.#hook(() => config.hooks.onRequest?.(event));
 		const started = Date.now();
 
@@ -313,7 +343,7 @@ export class Transport {
 		}
 
 		const durationMs = Date.now() - started;
-		config.logger.debug(`${description.method} ${description.path} returned ${response.status} in ${durationMs} ms`, {
+		config.logger[level](`${description.method} ${description.path} returned ${response.status} in ${durationMs} ms`, {
 			endpoint: endpoint.id,
 			status: response.status,
 			durationMs,

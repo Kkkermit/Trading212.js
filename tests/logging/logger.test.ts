@@ -4,20 +4,22 @@ import { consoleLogger, fieldsFirst, safeLogger, silentLogger } from "../../src/
 import { createRedactor, REDACTED } from "../../src/logging/redact";
 
 describe("loggers", () => {
-	it("consoleLogger prefixes lines and respects its level", () => {
+	it("consoleLogger writes one line per event, with its level, and respects its level", () => {
 		const target = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 		const logger = consoleLogger({ level: "warn", console: target });
 		logger.debug("hidden");
 		logger.info("hidden");
-		logger.warn("shown", { a: 1 });
+		logger.warn("shown", { endpoint: "getOrder", attempt: 2, hint: "Try again later.", gone: undefined });
 		logger.error("bare");
 		expect(target.debug).not.toHaveBeenCalled();
 		expect(target.info).not.toHaveBeenCalled();
-		expect(target.warn).toHaveBeenCalledWith("[trading212] shown", { a: 1 });
-		expect(target.error).toHaveBeenCalledWith("[trading212] bare");
+		expect(target.warn).toHaveBeenCalledWith(
+			'[trading212] WARN  shown endpoint=getOrder attempt=2 hint="Try again later."',
+		);
+		expect(target.error).toHaveBeenCalledWith("[trading212] ERROR bare");
 		const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
 		consoleLogger().info("default console");
-		expect(info).toHaveBeenCalledWith("[trading212] default console");
+		expect(info).toHaveBeenCalledWith("[trading212] INFO  default console");
 		info.mockRestore();
 	});
 

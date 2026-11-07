@@ -328,6 +328,54 @@ describe("hooks and logging", () => {
 		expect(lines[1]?.fields).toMatchObject({ status: 200, endpoint: "getAccountSummary" });
 	});
 
+	/** A default logger shows info and above, so every order leaves a line even when reads are hidden. */
+	it("logs anything that changes the account at info, and how each request ended", async () => {
+		const { lines, logger } = memoryLogger();
+		const { client } = scripted([{ body: { id: 7, status: "NEW" } }, { status: 400, body: { code: "MarketClosed" } }], {
+			logger,
+		});
+		await client.orders.market(ORDER);
+		await client.orders.market(ORDER).catch(() => undefined);
+		expect(lines.map((line) => [line.level, line.message.replace(/\d+ ms/, "N ms")])).toEqual([
+			["info", "Sending POST /api/v0/equity/orders/market"],
+			["info", "POST /api/v0/equity/orders/market returned 200 in N ms"],
+			["info", "Sending POST /api/v0/equity/orders/market"],
+			["info", "POST /api/v0/equity/orders/market returned 400 in N ms"],
+			["info", expect.stringMatching(/^POST \/api\/v0\/equity\/orders\/market failed with 400/)],
+		]);
+		expect(lines.at(-1)?.fields).toMatchObject({
+			endpoint: "placeMarketOrder",
+			code: "order_rejected",
+			status: 400,
+			apiCode: "MarketClosed",
+			hint: expect.stringContaining("market"),
+		});
+	});
+
+	it("warns when an order may or may not have gone through", async () => {
+		const { lines, logger } = memoryLogger();
+		const { client } = scripted([{ status: 503 }], { logger });
+		await expect(client.orders.market(ORDER)).rejects.toBeInstanceOf(OrderOutcomeUnknownError);
+		expect(lines.filter((line) => line.level === "warn")).toEqual([
+			expect.objectContaining({
+				message:
+					"POST /api/v0/equity/orders/market may or may not have gone through. Check orders.list() before sending it again.",
+				fields: expect.objectContaining({ code: "outcome_unknown" }),
+			}),
+		]);
+	});
+
+	it("logs a read that gave up, after its retries, at debug", async () => {
+		const { lines, logger } = memoryLogger();
+		const { client } = scripted([networkError("ECONNRESET"), networkError("ECONNRESET"), networkError("ECONNRESET")], {
+			logger,
+		});
+		await expect(client.account.summary()).rejects.toBeInstanceOf(NetworkError);
+		const last = lines.at(-1);
+		expect(last).toMatchObject({ level: "debug", fields: { endpoint: "getAccountSummary", code: "network" } });
+		expect(last?.message).toMatch(/^GET \/api\/v0\/equity\/account\/summary failed: /);
+	});
+
 	it("warns once per deprecated endpoint", async () => {
 		const { lines, logger } = memoryLogger();
 		const { client } = scripted([{ body: [] }, { body: [] }], { logger });
