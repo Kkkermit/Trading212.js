@@ -3,7 +3,7 @@ import prettier from "eslint-config-prettier";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-	{ ignores: ["dist", "coverage", "docs-site", "node_modules", "openapi", "src/**/*.generated.ts"] },
+	{ ignores: ["dist", "coverage", "node_modules", "openapi", "src/**/*.generated.ts"] },
 	js.configs.recommended,
 	...tseslint.configs.strictTypeChecked,
 	...tseslint.configs.stylisticTypeChecked,

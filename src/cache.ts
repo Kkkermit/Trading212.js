@@ -40,18 +40,28 @@ export class MemoryCache implements CacheStore {
 	}
 }
 
-/** Loads a value through the cache, sharing one in-flight load between concurrent callers. */
+/**
+ * Loads a value through the cache, sharing one in-flight load between concurrent callers. A cache store that fails is
+ * reported and bypassed, so a broken cache costs a download rather than the call.
+ */
 export class CachedLoader {
 	readonly #store: CacheStore;
+	readonly #onError: (error: unknown, key: string) => void;
 	readonly #inFlight = new Map<string, Promise<unknown>>();
 
-	constructor(store: CacheStore) {
+	constructor(store: CacheStore, onError: (error: unknown, key: string) => void = () => undefined) {
 		this.#store = store;
+		this.#onError = onError;
 	}
 
 	async load<T>(key: string, ttlMs: number, refresh: boolean, loader: () => Promise<T>): Promise<T> {
 		if (!refresh) {
-			const cached = await this.#store.get(key);
+			let cached: unknown;
+			try {
+				cached = await this.#store.get(key);
+			} catch (error) {
+				this.#onError(error, key);
+			}
 			if (cached !== undefined) return cached as T;
 		}
 		const pending = this.#inFlight.get(key);
@@ -59,7 +69,11 @@ export class CachedLoader {
 		const promise = (async () => {
 			try {
 				const value = await loader();
-				await this.#store.set(key, value, ttlMs);
+				try {
+					await this.#store.set(key, value, ttlMs);
+				} catch (error) {
+					this.#onError(error, key);
+				}
 				return value;
 			} finally {
 				this.#inFlight.delete(key);

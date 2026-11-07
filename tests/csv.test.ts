@@ -36,5 +36,17 @@ describe("csvNumber", () => {
 		expect(csvNumber("")).toBeUndefined();
 		expect(csvNumber("GBP")).toBeUndefined();
 		expect(csvNumber(undefined)).toBeUndefined();
+		expect(csvNumber("12,345,678.9")).toBe(12_345_678.9);
+		expect(csvNumber("1e3")).toBe(1000);
+	});
+
+	/** A comma that is not a thousands separator would silently multiply the value. */
+	it("refuses a decimal comma and other things Number() would accept", () => {
+		expect(csvNumber("1,5")).toBeUndefined();
+		expect(csvNumber("1,23,456")).toBeUndefined();
+		expect(csvNumber("0x10")).toBeUndefined();
+		expect(csvNumber("Infinity")).toBeUndefined();
+		expect(csvNumber("1e999")).toBeUndefined();
+		expect(csvNumber("12 345")).toBeUndefined();
 	});
 });

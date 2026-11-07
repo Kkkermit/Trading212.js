@@ -2,7 +2,7 @@
 export const QUANTITY_DECIMALS = 4;
 
 /** Writes a finite number out in full, without exponent notation, using its shortest exact representation. */
-function plain(value: number): string {
+function toPlainDecimal(value: number): string {
 	const text = Math.abs(value).toString();
 	const sign = value < 0 ? "-" : "";
 	const match = /^(\d+)(?:\.(\d+))?e([+-]\d+)$/.exec(text);
@@ -19,7 +19,7 @@ function plain(value: number): string {
 /** How many decimal places a number has, as written. */
 export function decimalPlaces(value: number): number {
 	if (!Number.isFinite(value)) return Number.NaN;
-	const fraction = plain(value).split(".")[1];
+	const fraction = toPlainDecimal(value).split(".")[1];
 	return fraction ? fraction.replace(/0+$/, "").length : 0;
 }
 
@@ -30,7 +30,7 @@ export function decimalPlaces(value: number): number {
 export function truncateQuantity(value: number, decimals = QUANTITY_DECIMALS): number {
 	if (!Number.isFinite(value)) throw new RangeError("Cannot truncate a quantity that is not a finite number.");
 	if (!Number.isInteger(decimals) || decimals < 0 || decimals > 20) throw new RangeError("decimals must be 0 to 20.");
-	const [whole = "0", fraction = ""] = plain(value).split(".");
+	const [whole = "0", fraction = ""] = toPlainDecimal(value).split(".");
 	const kept = fraction.slice(0, decimals);
 	const result = Number(kept ? `${whole}.${kept}` : whole);
 	return Object.is(result, -0) ? 0 : result;

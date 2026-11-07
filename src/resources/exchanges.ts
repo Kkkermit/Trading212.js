@@ -36,18 +36,21 @@ const SESSION_AFTER: Record<string, MarketSession> = {
 	AFTER_HOURS_CLOSE: "closed",
 };
 
+// At the same instant a close sorts before an open, so the session that starts then is the one shown.
+const eventOrder = (type: string): number => (SESSION_AFTER[type] === "closed" ? 0 : 1);
+
 interface DatedEvent {
 	readonly type: string;
 	readonly at: Date;
 }
 
-function dated(events: readonly TimeEvent[]): DatedEvent[] {
+function sortedEvents(events: readonly TimeEvent[]): DatedEvent[] {
 	return events
 		.flatMap((event) => {
 			const at = event.date ? new Date(event.date) : undefined;
 			return event.type && at && !Number.isNaN(at.getTime()) ? [{ type: event.type, at }] : [];
 		})
-		.sort((a, b) => a.at.getTime() - b.at.getTime());
+		.sort((a, b) => a.at.getTime() - b.at.getTime() || eventOrder(a.type) - eventOrder(b.type));
 }
 
 /** Works out the session at `at` from a working schedule. Pure, so it can be tested and reused offline. */
@@ -55,7 +58,7 @@ export function sessionAt(
 	events: readonly TimeEvent[],
 	at: Date,
 ): Pick<MarketStatus, "session" | "since" | "next" | "nextOpen"> {
-	const sorted = dated(events);
+	const sorted = sortedEvents(events);
 	const time = at.getTime();
 	const previous = sorted.filter((event) => event.at.getTime() <= time).pop();
 	const upcoming = sorted.filter((event) => event.at.getTime() > time);

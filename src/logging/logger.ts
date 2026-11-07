@@ -74,7 +74,7 @@ export function safeLogger(logger: Logger, redact: (value: unknown) => unknown):
 		(level: LogLevel) =>
 		(message: string, fields?: LogFields): void => {
 			try {
-				logger[level](message, fields ? (redact(fields) as LogFields) : undefined);
+				logger[level](redact(message) as string, fields ? (redact(fields) as LogFields) : undefined);
 			} catch {
 				// A broken logger must not fail the request it was describing.
 			}

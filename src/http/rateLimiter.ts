@@ -28,6 +28,47 @@ export interface EndpointBudget {
 	readonly resetAt: Date | undefined;
 }
 
+/** How long a call must wait for its slot, and whether the slot was taken. */
+export interface Reservation {
+	readonly waitMs: number;
+	readonly booked: boolean;
+}
+
+interface Plan {
+	readonly waitMs: number;
+	readonly next: Partial<Bucket>;
+}
+
+function planPaced(bucket: Bucket, now: number): Plan {
+	const slot = Math.max(now, bucket.nextSlotAt, bucket.blockedUntil);
+	return { waitMs: slot - now, next: { nextSlotAt: slot + bucket.periodMs / bucket.limit } };
+}
+
+function planBurst(bucket: Bucket, now: number): Plan {
+	let { windowStartsAt, windowEndsAt, remaining } = bucket;
+	if (bucket.blockedUntil > now && windowStartsAt < bucket.blockedUntil) {
+		windowStartsAt = bucket.blockedUntil;
+		windowEndsAt = bucket.blockedUntil + bucket.periodMs;
+		remaining = bucket.limit;
+	}
+	if (now >= windowEndsAt) {
+		windowStartsAt = now;
+		windowEndsAt = now + bucket.periodMs;
+		remaining = bucket.limit;
+	}
+	if (remaining > 0) {
+		return {
+			waitMs: Math.max(0, windowStartsAt - now),
+			next: { windowStartsAt, windowEndsAt, remaining: remaining - 1 },
+		};
+	}
+	// This window is spent, so the call takes the first place in the next one.
+	return {
+		waitMs: windowEndsAt - now,
+		next: { windowStartsAt: windowEndsAt, windowEndsAt: windowEndsAt + bucket.periodMs, remaining: bucket.limit - 1 },
+	};
+}
+
 type Registry = Map<string, Map<string, Bucket>>;
 
 const REGISTRY = Symbol.for("trading212.js/rate-limits");
@@ -77,34 +118,17 @@ export class RateLimiter {
 		return bucket;
 	}
 
-	/** Books the next slot for a call and returns how many milliseconds to wait before making it. */
-	reserve(endpoint: EndpointDefinition, now: number): number {
+	/**
+	 * Books the next slot for a call. When the wait would be longer than `maxWaitMs`, nothing is booked, so a refused
+	 * call never delays the ones after it.
+	 */
+	reserve(endpoint: EndpointDefinition, now: number, maxWaitMs = Number.POSITIVE_INFINITY): Reservation {
 		const bucket = this.#bucket(endpoint);
-		if (this.#mode === "off") return 0;
-		if (this.#mode === "pace") {
-			const slot = Math.max(now, bucket.nextSlotAt, bucket.blockedUntil);
-			bucket.nextSlotAt = slot + bucket.periodMs / bucket.limit;
-			return slot - now;
-		}
-		if (bucket.blockedUntil > now && bucket.windowStartsAt < bucket.blockedUntil) {
-			bucket.windowStartsAt = bucket.blockedUntil;
-			bucket.windowEndsAt = bucket.blockedUntil + bucket.periodMs;
-			bucket.remaining = bucket.limit;
-		}
-		if (now >= bucket.windowEndsAt) {
-			bucket.windowStartsAt = now;
-			bucket.windowEndsAt = now + bucket.periodMs;
-			bucket.remaining = bucket.limit;
-		}
-		if (bucket.remaining > 0) {
-			bucket.remaining--;
-			return Math.max(0, bucket.windowStartsAt - now);
-		}
-		// This window is spent: book the first place in the next one.
-		bucket.windowStartsAt = bucket.windowEndsAt;
-		bucket.windowEndsAt += bucket.periodMs;
-		bucket.remaining = bucket.limit - 1;
-		return bucket.windowStartsAt - now;
+		if (this.#mode === "off") return { waitMs: 0, booked: true };
+		const plan = this.#mode === "pace" ? planPaced(bucket, now) : planBurst(bucket, now);
+		if (plan.waitMs > maxWaitMs) return { waitMs: plan.waitMs, booked: false };
+		Object.assign(bucket, plan.next);
+		return { waitMs: plan.waitMs, booked: true };
 	}
 
 	/** Corrects the budget from what Trading 212's headers said, which beats the documented figures. */

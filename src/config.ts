@@ -9,7 +9,7 @@ import type { Logger } from "./logging/logger";
 export interface Trading212Options {
 	/** Required, with no default: `demo` for paper trading or `live` for real money. */
 	environment: Environment;
-	/** The API key from the Trading 212 app (Settings → API). */
+	/** The API key from the Trading 212 app (Settings > API). */
 	apiKey: string;
 	/** The secret shown once when the key was made. */
 	apiSecret: string;
@@ -67,10 +67,10 @@ function fail(field: string, message: string, hint?: string): never {
 	throw new ConfigurationError(message, { field, ...(hint && { hint }) });
 }
 
-function credential(field: "apiKey" | "apiSecret", value: unknown): string {
+function checkCredential(field: "apiKey" | "apiSecret", value: unknown): string {
 	const label = field === "apiKey" ? "API key" : "API secret";
 	if (typeof value !== "string" || value.length === 0) {
-		fail(field, `The ${label} is missing.`, "Create a key in the Trading 212 app under Settings → API.");
+		fail(field, `The ${label} is missing.`, "Create a key in the Trading 212 app under Settings > API.");
 	}
 	if (value.trim() !== value) {
 		fail(field, `The ${label} starts or ends with whitespace.`, "This is usually a copy-paste slip: trim it.");
@@ -79,7 +79,7 @@ function credential(field: "apiKey" | "apiSecret", value: unknown): string {
 	return value;
 }
 
-function positive(field: string, value: unknown, fallback: number, max: number): number {
+function positiveMs(field: string, value: unknown, fallback: number, max: number): number {
 	if (value === undefined) return fallback;
 	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > max) {
 		fail(field, `${field} must be a positive number of milliseconds no greater than ${max}.`);
@@ -89,7 +89,7 @@ function positive(field: string, value: unknown, fallback: number, max: number):
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-function origin(baseUrl: string | undefined, environment: Environment): { origin: string; official: boolean } {
+function resolveOrigin(baseUrl: string | undefined, environment: Environment): { origin: string; official: boolean } {
 	const official = BASE_URLS[environment];
 	if (baseUrl === undefined) return { origin: official, official: true };
 	let url: URL;
@@ -112,7 +112,7 @@ function origin(baseUrl: string | undefined, environment: Environment): { origin
 	return { origin: url.origin, official: url.origin === official };
 }
 
-function inBrowser(): boolean {
+function isBrowser(): boolean {
 	const scope = globalThis as { document?: unknown; window?: unknown };
 	return typeof scope.document === "object" && typeof scope.window === "object";
 }
@@ -126,15 +126,15 @@ export function resolveOptions(options: Trading212Options): ResolvedOptions {
 			"There is deliberately no default: say which one, because live trades real money.",
 		);
 	}
-	if (inBrowser() && !options.dangerouslyAllowBrowser) {
+	if (isBrowser() && !options.dangerouslyAllowBrowser) {
 		fail(
 			"dangerouslyAllowBrowser",
 			"trading212.js refuses to run in a browser.",
 			"Trading 212 rejects requests from web pages, and any key you ship to a browser is public. Call the API from a server instead.",
 		);
 	}
-	const apiKey = credential("apiKey", options.apiKey);
-	const apiSecret = credential("apiSecret", options.apiSecret);
+	const apiKey = checkCredential("apiKey", options.apiKey);
+	const apiSecret = checkCredential("apiSecret", options.apiSecret);
 	if (apiKey === apiSecret) {
 		fail("apiSecret", "The API secret is the same as the API key.", "Paste the secret, not the key, into apiSecret.");
 	}
@@ -155,21 +155,21 @@ export function resolveOptions(options: Trading212Options): ResolvedOptions {
 		}
 		retry = {
 			maxAttempts,
-			baseDelayMs: positive("retry.baseDelayMs", options.retry.baseDelayMs, DEFAULT_RETRY.baseDelayMs, 60_000),
-			maxDelayMs: positive("retry.maxDelayMs", options.retry.maxDelayMs, DEFAULT_RETRY.maxDelayMs, 300_000),
+			baseDelayMs: positiveMs("retry.baseDelayMs", options.retry.baseDelayMs, DEFAULT_RETRY.baseDelayMs, 60_000),
+			maxDelayMs: positiveMs("retry.maxDelayMs", options.retry.maxDelayMs, DEFAULT_RETRY.maxDelayMs, 300_000),
 		};
 	}
-	const { origin: resolvedOrigin, official } = origin(options.baseUrl, options.environment);
+	const { origin: resolvedOrigin, official } = resolveOrigin(options.baseUrl, options.environment);
 	return {
 		environment: options.environment,
 		apiKey,
 		apiSecret,
 		trading: options.trading ?? (options.environment === "demo" ? "enabled" : "disabled"),
-		timeoutMs: positive("timeoutMs", options.timeoutMs, 15_000, 600_000),
+		timeoutMs: positiveMs("timeoutMs", options.timeoutMs, 15_000, 600_000),
 		retry,
 		rateLimit: options.rateLimit ?? "pace",
-		maxRateLimitWaitMs: positive("maxRateLimitWaitMs", options.maxRateLimitWaitMs, 60_000, 3_600_000),
-		metadataTtlMs: positive("metadataTtlMs", options.metadataTtlMs, ONE_HOUR, 7 * 24 * ONE_HOUR),
+		maxRateLimitWaitMs: positiveMs("maxRateLimitWaitMs", options.maxRateLimitWaitMs, 60_000, 3_600_000),
+		metadataTtlMs: positiveMs("metadataTtlMs", options.metadataTtlMs, ONE_HOUR, 7 * 24 * ONE_HOUR),
 		origin: resolvedOrigin,
 		officialOrigin: official,
 	};

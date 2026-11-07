@@ -96,7 +96,6 @@
 		"generate:check": "tsx scripts/generateApi.ts --check",
 		"spec:fetch": "tsx scripts/fetchSpec.ts",
 		"fixtures:capture": "tsx scripts/captureErrors.ts",
-		"docs": "typedoc",
 		"secrets": "secretlint \"**/*\"",
 		"changeset": "changeset",
 		"release": "npm run check && changeset publish",
@@ -122,10 +121,12 @@
 		"size-limit": "^14.3.0",
 		"tsup": "^9.0.0",
 		"tsx": "^4.23.15",
-		"typedoc": "^0.28.20",
 		"typescript": "~6.0.3",
 		"typescript-eslint": "^8.72.1",
 		"vitest": "^5.1.0",
 		"yaml": "^2.9.1"
+	},
+	"overrides": {
+		"minimatch": "^11.0.5"
 	}
 }

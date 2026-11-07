@@ -52,11 +52,17 @@ export function parseCsv(text: string): Record<string, string>[] {
 		.map((row) => Object.fromEntries(header.map((name, column) => [name, row[column] ?? ""])));
 }
 
-/** Reads a CSV number such as `1,234.56` or `-0.5`, or returns `undefined` for an empty or non-numeric cell. */
+const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+const GROUPED = /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/;
+
+/**
+ * Reads a number from a CSV cell, such as `1234.56`, `1,234.56` or `-0.5`, or returns `undefined` for anything else.
+ * Trading 212 writes decimals with a full stop, so a comma is accepted only between groups of three digits.
+ */
 export function csvNumber(value: string | undefined): number | undefined {
-	if (value === undefined) return undefined;
-	const cleaned = value.trim().replaceAll(",", "");
-	if (cleaned === "") return undefined;
-	const number = Number(cleaned);
+	const trimmed = value?.trim() ?? "";
+	const plain = GROUPED.test(trimmed) ? trimmed.replaceAll(",", "") : trimmed;
+	if (!DECIMAL.test(plain)) return undefined;
+	const number = Number(plain);
 	return Number.isFinite(number) ? number : undefined;
 }

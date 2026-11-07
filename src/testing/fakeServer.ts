@@ -139,8 +139,8 @@ function defaultExchanges(now: Date): Exchange[] {
 	];
 }
 
-const MONEY = (value: number): number => Math.round(value * 100) / 100;
-const SHARES = (value: number): number => Math.round(value * 1e8) / 1e8;
+const roundMoney = (value: number): number => Math.round(value * 100) / 100;
+const roundShares = (value: number): number => Math.round(value * 1e8) / 1e8;
 
 /** A holding as the fake keeps it. */
 export interface FakeHoldingState {
@@ -158,11 +158,11 @@ export interface FakePendingOrder {
 	reservedShares: number;
 }
 
-function problem(status: number, code: string, detail: string): ScriptedResponse {
+function problemDetails(status: number, code: string, detail: string): ScriptedResponse {
 	return { status, body: { type: `/api-errors/${code}`, title: detail, status, detail } };
 }
 
-function legacy(status: number, code: string, clarification: string): ScriptedResponse {
+function codeError(status: number, code: string, clarification: string): ScriptedResponse {
 	return { status, body: { code, clarification } };
 }
 
@@ -229,7 +229,7 @@ export class FakeTrading212Server {
 		const request = await recordRequest(input, init);
 		this.requests.push(request);
 		const endpoint = this.#match(init.method ?? "GET", url.pathname);
-		if (url.origin !== this.#origin || !endpoint) return toResponse(problem(404, "not-found", "Unknown route"));
+		if (url.origin !== this.#origin || !endpoint) return toResponse(problemDetails(404, "not-found", "Unknown route"));
 		const failure = this.#failures.get(endpoint.definition.id as EndpointId)?.shift();
 		if (failure && "network" in failure) throw networkError(failure.network);
 		const response =
@@ -297,7 +297,12 @@ export class FakeTrading212Server {
 		return this.instruments.find((instrument) => instrument.ticker === ticker);
 	}
 
-	#brief(ticker: string): { ticker: string; name: string | null; isin: string | null; currency: string | null } {
+	#instrumentSummary(ticker: string): {
+		ticker: string;
+		name: string | null;
+		isin: string | null;
+		currency: string | null;
+	} {
 		const instrument = this.#instrument(ticker);
 		return {
 			ticker,
@@ -318,13 +323,13 @@ export class FakeTrading212Server {
 		const holding = this.holdings.get(ticker);
 		if (!holding) return undefined;
 		const price = this.priceOf(ticker);
-		const value = MONEY(holding.quantity * price);
-		const cost = MONEY(holding.quantity * holding.averagePrice);
+		const value = roundMoney(holding.quantity * price);
+		const cost = roundMoney(holding.quantity * holding.averagePrice);
 		return {
-			instrument: this.#brief(ticker),
+			instrument: this.#instrumentSummary(ticker),
 			quantity: holding.quantity,
 			quantityInPies: holding.inPies,
-			quantityAvailableForTrading: SHARES(holding.quantity - holding.inPies - this.#reservedShares(ticker)),
+			quantityAvailableForTrading: roundShares(holding.quantity - holding.inPies - this.#reservedShares(ticker)),
 			averagePricePaid: holding.averagePrice,
 			currentPrice: price,
 			createdAt: holding.createdAt,
@@ -332,7 +337,7 @@ export class FakeTrading212Server {
 				currency: this.currency,
 				currentValue: value,
 				totalCost: cost,
-				unrealizedProfitLoss: MONEY(value - cost),
+				unrealizedProfitLoss: roundMoney(value - cost),
 				fxImpact: 0,
 			},
 		};
@@ -340,21 +345,23 @@ export class FakeTrading212Server {
 
 	#summary(): unknown {
 		const positions = [...this.holdings.keys()].flatMap((ticker) => this.position(ticker) ?? []);
-		const currentValue = MONEY(
+		const currentValue = roundMoney(
 			positions.reduce((total, position) => total + (position.walletImpact?.currentValue ?? 0), 0),
 		);
-		const totalCost = MONEY(positions.reduce((total, position) => total + (position.walletImpact?.totalCost ?? 0), 0));
+		const totalCost = roundMoney(
+			positions.reduce((total, position) => total + (position.walletImpact?.totalCost ?? 0), 0),
+		);
 		const reserved = [...this.pending.values()].reduce((total, pending) => total + pending.reservedCash, 0);
 		return {
 			id: this.accountId,
 			currency: this.currency,
-			totalValue: MONEY(this.cash + reserved + currentValue),
-			cash: { availableToTrade: MONEY(this.cash), reservedForOrders: MONEY(reserved), inPies: 0 },
+			totalValue: roundMoney(this.cash + reserved + currentValue),
+			cash: { availableToTrade: roundMoney(this.cash), reservedForOrders: roundMoney(reserved), inPies: 0 },
 			investments: {
 				currentValue,
 				totalCost,
-				realizedProfitLoss: MONEY(this.realisedProfitLoss),
-				unrealizedProfitLoss: MONEY(currentValue - totalCost),
+				realizedProfitLoss: roundMoney(this.realisedProfitLoss),
+				unrealizedProfitLoss: roundMoney(currentValue - totalCost),
 			},
 		};
 	}
@@ -376,7 +383,7 @@ export class FakeTrading212Server {
 				return { body: [...this.pending.values()].map((pending) => pending.order) };
 			case "getOrder": {
 				const pending = this.pending.get(pathId ?? 0);
-				return pending ? { body: pending.order } : legacy(404, "OrderNotFound", "Order not found");
+				return pending ? { body: pending.order } : codeError(404, "OrderNotFound", "Order not found");
 			}
 			case "cancelOrder":
 				return this.#cancel(pathId ?? 0);
@@ -406,15 +413,15 @@ export class FakeTrading212Server {
 			}
 			case "updatePie": {
 				const pie = this.pies.get(pathId ?? 0);
-				if (!pie) return legacy(404, "PieNotFound", "Pie not found");
+				if (!pie) return codeError(404, "PieNotFound", "Pie not found");
 				pie.settings = { ...pie.settings, ...(body as PieRequest) };
 				return this.#pie(pathId ?? 0);
 			}
 			case "deletePie":
-				return this.pies.delete(pathId ?? 0) ? { status: 200 } : legacy(404, "PieNotFound", "Pie not found");
+				return this.pies.delete(pathId ?? 0) ? { status: 200 } : codeError(404, "PieNotFound", "Pie not found");
 			case "duplicatePie": {
 				const pie = this.pies.get(pathId ?? 0);
-				if (!pie) return legacy(404, "PieNotFound", "Pie not found");
+				if (!pie) return codeError(404, "PieNotFound", "Pie not found");
 				const pieId = this.#nextId++;
 				this.pies.set(pieId, { settings: { ...pie.settings, ...(body as PieRequest) }, cash: 0 });
 				return this.#pie(pieId);
@@ -428,7 +435,7 @@ export class FakeTrading212Server {
 
 	#pie(id: number): ScriptedResponse {
 		const pie = this.pies.get(id);
-		if (!pie) return legacy(404, "PieNotFound", "Pie not found");
+		if (!pie) return codeError(404, "PieNotFound", "Pie not found");
 		const details: AccountBucketInstrumentsDetailedResponse = {
 			settings: { ...pie.settings, id, creationDate: new Date(0).toISOString() },
 			instruments: Object.entries(pie.settings.instrumentShares ?? {}).map(([ticker, share]) => ({
@@ -443,7 +450,7 @@ export class FakeTrading212Server {
 
 	#cancel(orderId: number): ScriptedResponse {
 		const pending = this.pending.get(orderId);
-		if (!pending) return legacy(404, "OrderNotFound", "Order not found");
+		if (!pending) return codeError(404, "OrderNotFound", "Order not found");
 		this.pending.delete(orderId);
 		this.cash += pending.reservedCash;
 		this.orderHistory.unshift({ order: { ...pending.order, status: "CANCELLED" } });
@@ -453,13 +460,14 @@ export class FakeTrading212Server {
 	#place(id: EndpointId, body: Record<string, unknown>): ScriptedResponse {
 		const ticker = typeof body.ticker === "string" ? body.ticker : "";
 		const quantity = typeof body.quantity === "number" ? body.quantity : Number.NaN;
-		if (!this.#instrument(ticker)) return legacy(400, "InstrumentNotFound", `No instrument ${ticker}`);
+		if (!this.#instrument(ticker)) return codeError(400, "InstrumentNotFound", `No instrument ${ticker}`);
 		if (!Number.isFinite(quantity) || quantity === 0)
-			return problem(400, "invalid-quantity", "Quantity must not be zero");
-		if (decimalPlaces(quantity) > 4) return problem(400, "quantity-precision-mismatch", "Quantity precision mismatch");
+			return problemDetails(400, "invalid-quantity", "Quantity must not be zero");
+		if (decimalPlaces(quantity) > 4)
+			return problemDetails(400, "quantity-precision-mismatch", "Quantity precision mismatch");
 		if (id !== "placeMarketOrder" && "extendedHours" in body)
-			return problem(400, "bad-request", "extendedHours is only valid for market orders");
-		if (!this.marketOpen) return legacy(400, "MarketClosed", "The market is closed");
+			return problemDetails(400, "bad-request", "extendedHours is only valid for market orders");
+		if (!this.marketOpen) return codeError(400, "MarketClosed", "The market is closed");
 		const type =
 			{
 				placeMarketOrder: "MARKET",
@@ -473,15 +481,15 @@ export class FakeTrading212Server {
 		const buying = quantity > 0;
 		const holding = this.holdings.get(ticker);
 		const available = holding ? holding.quantity - holding.inPies - this.#reservedShares(ticker) : 0;
-		if (buying && MONEY(quantity * price) > MONEY(this.cash)) {
-			return legacy(400, "InsufficientFreeForStocksBuy", "Insufficient funds");
+		if (buying && roundMoney(quantity * price) > roundMoney(this.cash)) {
+			return codeError(400, "InsufficientFreeForStocksBuy", "Insufficient funds");
 		}
-		if (!buying && -quantity > SHARES(available) + 1e-9)
-			return legacy(400, "SellingEquityNotOwned", "Selling equity not owned");
+		if (!buying && -quantity > roundShares(available) + 1e-9)
+			return codeError(400, "SellingEquityNotOwned", "Selling equity not owned");
 		const order: Order = {
 			id: this.#nextId++,
 			ticker,
-			instrument: this.#brief(ticker),
+			instrument: this.#instrumentSummary(ticker),
 			type,
 			side: buying ? "BUY" : "SELL",
 			status: "NEW",
@@ -500,7 +508,7 @@ export class FakeTrading212Server {
 			this.#execute(order, price);
 			return { body: order };
 		}
-		const reservedCash = buying ? MONEY(quantity * price) : 0;
+		const reservedCash = buying ? roundMoney(quantity * price) : 0;
 		this.cash -= reservedCash;
 		this.pending.set(order.id ?? 0, { order, reservedCash, reservedShares: buying ? 0 : -quantity });
 		return { body: order };
@@ -510,15 +518,15 @@ export class FakeTrading212Server {
 		const ticker = order.ticker ?? "";
 		const quantity = order.quantity ?? 0;
 		const buying = order.side === "BUY";
-		const value = MONEY(quantity * price);
+		const value = roundMoney(quantity * price);
 		const holding = this.holdings.get(ticker);
 		let realised = 0;
 		if (buying) {
-			this.cash = MONEY(this.cash - value);
+			this.cash = roundMoney(this.cash - value);
 			if (holding) {
 				const total = holding.quantity + quantity;
 				holding.averagePrice = (holding.averagePrice * holding.quantity + price * quantity) / total;
-				holding.quantity = SHARES(total);
+				holding.quantity = roundShares(total);
 			} else {
 				this.holdings.set(ticker, {
 					ticker,
@@ -529,9 +537,9 @@ export class FakeTrading212Server {
 				});
 			}
 		} else if (holding) {
-			realised = MONEY((price - holding.averagePrice) * quantity);
-			this.cash = MONEY(this.cash + value);
-			holding.quantity = SHARES(holding.quantity - quantity);
+			realised = roundMoney((price - holding.averagePrice) * quantity);
+			this.cash = roundMoney(this.cash + value);
+			holding.quantity = roundShares(holding.quantity - quantity);
 			if (holding.quantity <= 0) this.holdings.delete(ticker);
 		}
 		this.realisedProfitLoss += realised;
@@ -565,7 +573,7 @@ export class FakeTrading212Server {
 	): ScriptedResponse {
 		const limit = request.query.limit === undefined ? 20 : Number(request.query.limit);
 		if (!Number.isInteger(limit) || limit < 1 || limit > 50)
-			return problem(400, "bad-filtering-arguments", "limit must be 1 to 50");
+			return problemDetails(400, "bad-filtering-arguments", "limit must be 1 to 50");
 		const ticker = request.query.ticker;
 		const items = ticker ? all.filter((item) => tickerOf(item) === ticker) : all;
 		const start = request.query.cursor === undefined ? 0 : Number(request.query.cursor);
@@ -583,7 +591,7 @@ export class FakeTrading212Server {
 
 	#exportsRefused(): ScriptedResponse | undefined {
 		return this.environment === "demo" && !this.exportsOnDemo
-			? problem(403, "not-available-in-demo-account", "Not available in demo account")
+			? problemDetails(403, "not-available-in-demo-account", "Not available in demo account")
 			: undefined;
 	}
 

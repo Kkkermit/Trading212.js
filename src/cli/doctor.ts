@@ -32,7 +32,7 @@ const COLOUR: Record<CheckStatus, "green" | "red" | "yellow" | "gray"> = {
 	skipped: "gray",
 };
 
-function describe(error: unknown): string {
+function explain(error: unknown): string {
 	if (isTrading212Error(error)) return error.hint ? `${error.message}\n    ${error.hint}` : error.message;
 	return error instanceof Error ? error.message : String(error);
 }
@@ -40,7 +40,7 @@ function describe(error: unknown): string {
 /** Checks the key, environment and every permission that can be checked without trading. Returns the exit code. */
 export async function runDoctor(options: DoctorOptions): Promise<number> {
 	const results: CheckResult[] = [];
-	// The doctor redacts its own output too, so no path through it can print a credential.
+	// Redacts its own output too, in case an error from the client ever carries a credential.
 	const redact = createRedactor(
 		[
 			options.env.T212_API_KEY,
@@ -75,7 +75,7 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
 		});
 		client = options.createClient ? options.createClient(options.env) : new Trading212(settings);
 	} catch (error) {
-		report({ name: "settings", status: "failed", detail: describe(error) });
+		report({ name: "settings", status: "failed", detail: explain(error) });
 		return finish(1);
 	}
 
@@ -87,7 +87,7 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
 			detail: `account ${me.accountId ?? "?"} (${me.currency ?? "?"}) on ${me.environment}`,
 		});
 	} catch (error) {
-		report({ name: "sign in", status: "failed", detail: describe(error) });
+		report({ name: "sign in", status: "failed", detail: explain(error) });
 		return finish(1);
 	}
 
@@ -108,7 +108,7 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
 		} catch (error) {
 			if (error instanceof MissingScopeError) {
 				report({ name: scope, status: "missing", detail: `not on this key (create one with "${scope}" ticked)` });
-			} else report({ name: scope, status: "warning", detail: describe(error) });
+			} else report({ name: scope, status: "warning", detail: explain(error) });
 		}
 	}
 	try {
@@ -118,7 +118,7 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
 		if (error instanceof NotAvailableInDemoError) report({ name: "exports", status: "skipped", detail: "live only" });
 		else if (error instanceof MissingScopeError)
 			report({ name: "exports", status: "missing", detail: "not on this key" });
-		else report({ name: "exports", status: "warning", detail: describe(error) });
+		else report({ name: "exports", status: "warning", detail: explain(error) });
 	}
 	report({ name: "orders:execute", status: "skipped", detail: "not checked: it would need a real order" });
 	report({

@@ -54,19 +54,19 @@ export function parseErrorBody(text: string): ParsedErrorBody {
 		return typeof json === "string" ? { message: json.slice(0, MAX_MESSAGE), body: json } : { body: json };
 	}
 	const record = json as Record<string, unknown>;
-	const text_ = (key: string): string | undefined => {
+	const stringField = (key: string): string | undefined => {
 		const value = record[key];
 		return typeof value === "string" && value.trim() ? value.trim() : undefined;
 	};
-	const type = text_("type");
-	const apiCode = text_("code") ?? text_("errorCode") ?? (type ? lastSegment(type) : undefined);
+	const type = stringField("type");
+	const apiCode = stringField("code") ?? stringField("errorCode") ?? (type ? lastSegment(type) : undefined);
 	const message =
-		text_("detail") ??
-		text_("clarification") ??
-		text_("message") ??
-		text_("errorMessage") ??
-		text_("error") ??
-		text_("title");
+		stringField("detail") ??
+		stringField("clarification") ??
+		stringField("message") ??
+		stringField("errorMessage") ??
+		stringField("error") ??
+		stringField("title");
 	return {
 		...(apiCode !== undefined && { apiCode }),
 		...(message !== undefined && { message: message.slice(0, MAX_MESSAGE) }),
@@ -84,7 +84,7 @@ const KNOWN_REJECTIONS = (Object.keys(ORDER_REJECTION_HINTS) as KnownRejection[]
 	(reason) => [reason, normalise(reason)] as const,
 );
 
-function rejectionIn(haystack: string): KnownRejection | undefined {
+function findRejection(haystack: string): KnownRejection | undefined {
 	return KNOWN_REJECTIONS.find(([, needle]) => haystack.includes(needle))?.[0];
 }
 
@@ -122,7 +122,7 @@ export function errorFromResponse(context: ResponseContext): Trading212Error {
 
 	switch (status) {
 		case 400: {
-			const rejection = rejectionIn(searchable);
+			const rejection = findRejection(searchable);
 			if (rejection) {
 				return new OrderRejectedError(message, {
 					...details,

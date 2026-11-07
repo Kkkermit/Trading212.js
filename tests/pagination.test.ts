@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { RateLimitError, Trading212Error, UnexpectedResponseError, ValidationError } from "../src/errors/errors";
 import { ENDPOINTS } from "../src/http/endpoints.generated";
-import { nextQuery } from "../src/pagination";
+import { nextPageQuery } from "../src/pagination";
 
 import { scripted } from "./helpers";
 
@@ -12,21 +12,21 @@ const page = (ids: number[], nextPagePath: string | null) => ({
 	body: { items: ids.map((id) => ({ order: { id } })), nextPagePath },
 });
 
-describe("nextQuery", () => {
+describe("nextPageQuery", () => {
 	it("follows the documented full path", () => {
-		expect(nextQuery("/api/v0/equity/history/orders?limit=2&cursor=1760346100000", ORDERS, ORIGIN)).toBe(
+		expect(nextPageQuery("/api/v0/equity/history/orders?limit=2&cursor=1760346100000", ORDERS, ORIGIN)).toBe(
 			"limit=2&cursor=1760346100000",
 		);
 	});
 
 	it("accepts a bare query string, with or without its question mark", () => {
-		expect(nextQuery("limit=2&cursor=5", ORDERS, ORIGIN)).toBe("limit=2&cursor=5");
-		expect(nextQuery("?limit=2&cursor=5", ORDERS, ORIGIN)).toBe("limit=2&cursor=5");
+		expect(nextPageQuery("limit=2&cursor=5", ORDERS, ORIGIN)).toBe("limit=2&cursor=5");
+		expect(nextPageQuery("?limit=2&cursor=5", ORDERS, ORIGIN)).toBe("limit=2&cursor=5");
 	});
 
 	it("treats every form of 'no more' as the end", () => {
 		for (const end of [null, undefined, "", "  ", "null", "null&limit=2", "null?x", "/api/v0/equity/history/orders"]) {
-			expect(nextQuery(end, ORDERS, ORIGIN), String(end)).toBeNull();
+			expect(nextPageQuery(end, ORDERS, ORIGIN), String(end)).toBeNull();
 		}
 	});
 
@@ -40,7 +40,7 @@ describe("nextQuery", () => {
 			"/api/v0/equity/history/orders\\..\\x?cursor=1",
 			"http://[::1",
 		]) {
-			expect(() => nextQuery(hostile, ORDERS, ORIGIN), hostile).toThrow(UnexpectedResponseError);
+			expect(() => nextPageQuery(hostile, ORDERS, ORIGIN), hostile).toThrow(UnexpectedResponseError);
 		}
 	});
 });

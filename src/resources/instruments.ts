@@ -24,7 +24,7 @@ export interface ResolveOptions extends ListOptions {
 	currency?: string;
 }
 
-function score(instrument: TradableInstrument, query: string): number {
+function matchScore(instrument: TradableInstrument, query: string): number {
 	const q = query.toLowerCase();
 	const ticker = instrument.ticker?.toLowerCase() ?? "";
 	const short = instrument.shortName?.toLowerCase() ?? "";
@@ -42,7 +42,7 @@ function score(instrument: TradableInstrument, query: string): number {
 	return 0;
 }
 
-function matches(instrument: TradableInstrument, options: { type?: string; currency?: string }): boolean {
+function passesFilters(instrument: TradableInstrument, options: { type?: string; currency?: string }): boolean {
 	if (options.type && instrument.type?.toUpperCase() !== options.type.toUpperCase()) return false;
 	if (options.currency && instrument.currencyCode?.toUpperCase() !== options.currency.toUpperCase()) return false;
 	return true;
@@ -86,8 +86,8 @@ export class InstrumentsResource {
 			});
 		const filters = { ...(type && { type }), ...(currency && { currency }) };
 		return (await this.list(list))
-			.filter((instrument) => matches(instrument, filters))
-			.map((instrument) => ({ instrument, score: score(instrument, trimmed) }))
+			.filter((instrument) => passesFilters(instrument, filters))
+			.map((instrument) => ({ instrument, score: matchScore(instrument, trimmed) }))
 			.filter((entry) => entry.score > 0)
 			.sort((a, b) => b.score - a.score || (a.instrument.ticker ?? "").localeCompare(b.instrument.ticker ?? ""))
 			.slice(0, limit)
@@ -100,7 +100,7 @@ export class InstrumentsResource {
 	}
 
 	/**
-	 * Turns what a person would type — `AAPL`, `Apple`, an ISIN — into exactly one instrument, or throws
+	 * Turns what a person would type (`AAPL`, `Apple`, an ISIN) into exactly one instrument, or throws
 	 * `InstrumentNotFoundError` listing the closest matches when none or several fit.
 	 *
 	 * @example
@@ -115,8 +115,8 @@ export class InstrumentsResource {
 			...(currency && { currency }),
 		});
 		const best = ranked[0];
-		const top = best ? score(best, query.trim()) : 0;
-		const tied = ranked.filter((instrument) => score(instrument, query.trim()) === top);
+		const top = best ? matchScore(best, query.trim()) : 0;
+		const tied = ranked.filter((instrument) => matchScore(instrument, query.trim()) === top);
 		// An exact ticker, ISIN, short name or full name counts; a prefix or a word inside the name does not.
 		if (best && top >= 80 && tied.length === 1) return best;
 		const suggestions = ranked

@@ -104,7 +104,11 @@ export class Trading212 {
 		});
 		const context: ResourceContext = {
 			transport: this.#transport,
-			cache: new CachedLoader(options.cache ?? new MemoryCache()),
+			cache: new CachedLoader(options.cache ?? new MemoryCache(), (error, key) => {
+				logger.warn(`The cache store failed for the ${key.split(":").pop() ?? "metadata"} list, so it was bypassed.`, {
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}),
 			cacheNamespace: accountKey,
 			metadataTtlMs: resolved.metadataTtlMs,
 			fetch: fetchImpl,

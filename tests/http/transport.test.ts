@@ -12,7 +12,8 @@ import {
 } from "../../src/errors/errors";
 import { buildPath } from "../../src/http/transport";
 import { networkError } from "../../src/testing/scriptedFetch";
-import { API_KEY, API_SECRET, hangingFetch, memoryLogger, scripted } from "../helpers";
+
+import { hangingFetch, memoryLogger, scripted } from "../helpers";
 
 const SUMMARY = { id: 1, currency: "GBP", totalValue: 10 };
 const ORDER = { ticker: "AAPL_US_EQ", quantity: 1 };
@@ -329,6 +330,29 @@ describe("hooks and logging", () => {
 	});
 });
 
-it("uses the key and secret given", () => {
-	expect(API_KEY).not.toBe(API_SECRET);
+describe("responses that break while being read", () => {
+	const breaking = (status: number) =>
+		new Response(
+			new ReadableStream({
+				pull: (controller) => {
+					controller.error(new Error("cut"));
+				},
+			}),
+			{ status },
+		);
+
+	/** A server error on a trade leaves its outcome open even if the body never arrives. */
+	it("reports a trade as an unknown outcome after a 5xx or 408", async () => {
+		for (const status of [500, 503, 408]) {
+			const { client } = scripted([], { fetch: () => Promise.resolve(breaking(status)) });
+			await expect(client.orders.market(ORDER), String(status)).rejects.toBeInstanceOf(OrderOutcomeUnknownError);
+		}
+	});
+
+	it("does not call a refused trade an unknown outcome", async () => {
+		const { client } = scripted([], { fetch: () => Promise.resolve(breaking(400)) });
+		const error = await client.orders.market(ORDER).catch((caught: unknown) => caught);
+		expect(error).toBeInstanceOf(NetworkError);
+		expect(error).not.toBeInstanceOf(OrderOutcomeUnknownError);
+	});
 });

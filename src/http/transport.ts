@@ -109,7 +109,7 @@ const NOT_SENT = new Set([
 	"ERR_TLS_CERT_ALTNAME_INVALID",
 ]);
 
-function causeCode(error: unknown): string | undefined {
+function errorCode(error: unknown): string | undefined {
 	let current: unknown = error;
 	for (let depth = 0; depth < 4 && current; depth++) {
 		const code = (current as { code?: unknown }).code;
@@ -241,9 +241,8 @@ export class Transport {
 	async #waitForBudget(endpoint: EndpointDefinition, description: RequestDescription, signal?: AbortSignal) {
 		const config = this.#config;
 		const now = Date.now();
-		const waitMs = config.rateLimiter.reserve(endpoint, now);
-		if (waitMs <= 0) return;
-		if (waitMs > config.maxRateLimitWaitMs) {
+		const { waitMs, booked } = config.rateLimiter.reserve(endpoint, now, config.maxRateLimitWaitMs);
+		if (!booked) {
 			throw new RateLimitError(
 				`${description.method} ${description.path} would have to wait ${Math.ceil(waitMs / 1000)} s for rate-limit budget, longer than maxRateLimitWaitMs.`,
 				{
@@ -254,6 +253,7 @@ export class Transport {
 				},
 			);
 		}
+		if (waitMs <= 0) return;
 		const message = `Waiting ${waitMs} ms for ${endpoint.id}'s rate limit.`;
 		if (waitMs >= 5000) config.logger.warn(message, { endpoint: endpoint.id, waitMs });
 		else config.logger.debug(message, { endpoint: endpoint.id, waitMs });
@@ -295,7 +295,7 @@ export class Transport {
 				redirect: "manual",
 			});
 		} catch (error) {
-			throw this.#failure(error, endpoint, description, options, timeout, timeoutMs, true);
+			throw this.#requestFailure(error, endpoint, description, options, timeout, timeoutMs, true);
 		}
 
 		const rateLimit = parseRateLimitHeaders(response.headers);
@@ -305,11 +305,13 @@ export class Transport {
 			text = await response.text();
 			if (!response.ok) text = text.slice(0, MAX_ERROR_BODY);
 		} catch (error) {
-			throw this.#failure(error, endpoint, description, options, timeout, timeoutMs, response.ok);
+			// Once Trading 212 has answered, only a success, a timeout or a server error leaves a trade's outcome open.
+			const mayHaveRun = response.status < 300 || response.status === 408 || response.status >= 500;
+			throw this.#requestFailure(error, endpoint, description, options, timeout, timeoutMs, mayHaveRun);
 		}
 
 		const durationMs = Date.now() - started;
-		config.logger.debug(`${description.method} ${description.path} → ${response.status} in ${durationMs} ms`, {
+		config.logger.debug(`${description.method} ${description.path} returned ${response.status} in ${durationMs} ms`, {
 			endpoint: endpoint.id,
 			status: response.status,
 			durationMs,
@@ -356,7 +358,7 @@ export class Transport {
 		}
 	}
 
-	#failure(
+	#requestFailure(
 		error: unknown,
 		endpoint: EndpointDefinition,
 		description: RequestDescription,
@@ -391,7 +393,7 @@ export class Transport {
 				hint: HINTS.timeout(endpoint.kind),
 			});
 		}
-		const code = causeCode(error);
+		const code = errorCode(error);
 		const sent = !(code !== undefined && NOT_SENT.has(code));
 		if (trade && sent && mayHaveRun) {
 			return new OrderOutcomeUnknownError(`${where} lost its connection${code ? ` (${code})` : ""}.`, {

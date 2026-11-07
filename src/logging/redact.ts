@@ -29,9 +29,12 @@ export function createRedactor(secrets: readonly string[]): Redactor {
 		if (Array.isArray(value)) return value.map((item) => visit(item, depth + 1, seen));
 		const out: Record<string, unknown> = {};
 		for (const [key, inner] of Object.entries(value)) {
-			if (SENSITIVE_KEY.test(key)) out[key] = REDACTED;
-			else if (key === "downloadLink" && typeof inner === "string") out[key] = stripQuery(redactString(inner));
-			else out[key] = visit(inner, depth + 1, seen);
+			let safe: unknown;
+			if (SENSITIVE_KEY.test(key)) safe = REDACTED;
+			else if (key === "downloadLink" && typeof inner === "string") safe = stripQuery(redactString(inner));
+			else safe = visit(inner, depth + 1, seen);
+			// defineProperty, so a key named "__proto__" stays data instead of replacing the prototype.
+			Object.defineProperty(out, key, { value: safe, enumerable: true, writable: true, configurable: true });
 		}
 		return out;
 	};

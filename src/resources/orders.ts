@@ -91,7 +91,7 @@ const ENDPOINT_FOR: Record<OrderType, EndpointDefinition> = {
 /** The statuses an order does not leave. */
 export const FINAL_ORDER_STATUSES: ReadonlySet<string> = new Set(["FILLED", "CANCELLED", "REJECTED", "REPLACED"]);
 
-function checkId(id: unknown): number {
+function checkOrderId(id: unknown): number {
 	if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0) {
 		throw new ValidationError("An order ID must be a positive whole number.", {
 			issues: [{ field: "id", message: "is not a valid order ID" }],
@@ -100,7 +100,7 @@ function checkId(id: unknown): number {
 	return id;
 }
 
-function bodyOf(input: object): Record<string, unknown> {
+function requestBody(input: object): Record<string, unknown> {
 	const body: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(input)) {
 		if (key !== "type" && value !== undefined) body[key] = value;
@@ -141,7 +141,7 @@ export class OrdersResource {
 	async get(id: number, options: CallOptions = {}): Promise<Order> {
 		const { data } = await this.#context.transport.request<Order>(ENDPOINTS.getOrder, {
 			...options,
-			params: { id: checkId(id) },
+			params: { id: checkOrderId(id) },
 		});
 		return data;
 	}
@@ -153,7 +153,7 @@ export class OrdersResource {
 	 * Scope `orders:execute` · 50 requests / minute.
 	 */
 	async cancel(id: number, options: CallOptions = {}): Promise<void> {
-		await this.#context.transport.request(ENDPOINTS.cancelOrder, { ...options, params: { id: checkId(id) } });
+		await this.#context.transport.request(ENDPOINTS.cancelOrder, { ...options, params: { id: checkOrderId(id) } });
 	}
 
 	/**
@@ -251,7 +251,7 @@ export class OrdersResource {
 	 */
 	async waitFor(order: Order | number, options: WaitOptions = {}): Promise<Order> {
 		const { timeoutMs = 60_000, intervalMs = 1000, signal } = options;
-		const id = checkId(typeof order === "number" ? order : order.id);
+		const id = checkOrderId(typeof order === "number" ? order : order.id);
 		let ticker = typeof order === "number" ? undefined : (order.ticker ?? order.instrument?.ticker ?? undefined);
 		let last = typeof order === "number" ? undefined : order;
 		const deadline = Date.now() + timeoutMs;
@@ -286,7 +286,7 @@ export class OrdersResource {
 
 	async #place<O extends PlaceOptions>(type: OrderType, request: object, options: O | undefined): Promise<Placed<O>> {
 		const { dryRun = false, ...call } = options ?? ({} as PlaceOptions);
-		const body = bodyOf(request);
+		const body = requestBody(request);
 		validateOrder(type, body);
 		const endpoint = ENDPOINT_FOR[type];
 		const { transport } = this.#context;

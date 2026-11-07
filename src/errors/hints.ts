@@ -5,7 +5,7 @@ export const HINTS = {
 	authentication: (environment: Environment): string =>
 		`Trading 212 refused the key and secret. Check both were copied exactly, with no spaces. A key works in one environment only: this client is set to ${environment}, so the key must have been made while the app was in ${environment === "demo" ? "practice (demo)" : "real-money (live)"} mode.`,
 	missingScope: (scope: string): string =>
-		`This API key does not have the "${scope}" permission. In the Trading 212 app, go to Settings → API and create a key with "${scope}" ticked.`,
+		`This API key does not have the "${scope}" permission. In the Trading 212 app, go to Settings > API and create a key with "${scope}" ticked.`,
 	notAvailableInDemo:
 		"Trading 212 does not offer this in the demo environment. It works on live only (CSV exports are one example).",
 	permission:

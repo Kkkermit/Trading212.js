@@ -31,11 +31,11 @@ export interface PortfolioSnapshot {
 	readonly takenAt: Date;
 }
 
-const amount = (value: number | null | undefined): number =>
+const numberOrZero = (value: number | null | undefined): number =>
 	typeof value === "number" && Number.isFinite(value) ? value : 0;
 
 /**
- * Combines an account summary and its positions into one tidy picture: totals, and each holding's value, profit and
+ * Combines an account summary and its positions: the totals, and each holding's value, profit and
  * share of the portfolio. Pure, so you can call it on data you already have.
  */
 export function buildPortfolioSnapshot(
@@ -44,13 +44,13 @@ export function buildPortfolioSnapshot(
 	takenAt = new Date(),
 ): PortfolioSnapshot {
 	const holdings = positions.map((position) => {
-		const value = amount(position.walletImpact?.currentValue);
-		const cost = amount(position.walletImpact?.totalCost);
-		const profitLoss = amount(position.walletImpact?.unrealizedProfitLoss);
+		const value = numberOrZero(position.walletImpact?.currentValue);
+		const cost = numberOrZero(position.walletImpact?.totalCost);
+		const profitLoss = numberOrZero(position.walletImpact?.unrealizedProfitLoss);
 		return {
 			ticker: position.instrument?.ticker ?? "",
 			name: position.instrument?.name ?? undefined,
-			quantity: amount(position.quantity),
+			quantity: numberOrZero(position.quantity),
 			value,
 			cost,
 			profitLoss,
@@ -60,11 +60,11 @@ export function buildPortfolioSnapshot(
 	const invested = holdings.reduce((total, holding) => total + holding.value, 0);
 	return {
 		currency: summary.currency ?? undefined,
-		totalValue: amount(summary.totalValue),
-		cash: amount(summary.cash?.availableToTrade),
+		totalValue: numberOrZero(summary.totalValue),
+		cash: numberOrZero(summary.cash?.availableToTrade),
 		invested,
-		unrealisedProfitLoss: amount(summary.investments?.unrealizedProfitLoss),
-		realisedProfitLoss: amount(summary.investments?.realizedProfitLoss),
+		unrealisedProfitLoss: numberOrZero(summary.investments?.unrealizedProfitLoss),
+		realisedProfitLoss: numberOrZero(summary.investments?.realizedProfitLoss),
 		holdings: holdings
 			.map((holding) => ({ ...holding, weight: invested === 0 ? 0 : holding.value / invested }))
 			.sort((a, b) => b.value - a.value),
@@ -82,7 +82,7 @@ export class PortfolioResource {
 	}
 
 	/**
-	 * The whole account at a glance, from two requests: totals, and every holding with its value, profit and weight.
+	 * The account's totals and every holding's value, profit and weight, from two requests.
 	 *
 	 * @example
 	 * const { totalValue, holdings } = await t212.portfolio.snapshot();

@@ -1,5 +1,4 @@
 import { inspect } from "node:util";
-
 import { describe, expect, it } from "vitest";
 
 import { basicAuthorization } from "../src/config";

@@ -9,7 +9,7 @@ import type {
 
 import type { ResourceContext } from "./context";
 
-function checkId(id: unknown): number {
+function checkPieId(id: unknown): number {
 	if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0) {
 		throw new ValidationError("A pie ID must be a positive whole number.", {
 			issues: [{ field: "id", message: "is not a valid pie ID" }],
@@ -42,7 +42,7 @@ export class PiesResource {
 	async get(id: number, options: CallOptions = {}): Promise<AccountBucketInstrumentsDetailedResponse> {
 		const { data } = await this.#context.transport.request<AccountBucketInstrumentsDetailedResponse>(ENDPOINTS.getPie, {
 			...options,
-			params: { id: checkId(id) },
+			params: { id: checkPieId(id) },
 		});
 		return data;
 	}
@@ -69,7 +69,7 @@ export class PiesResource {
 			ENDPOINTS.updatePie,
 			{
 				...options,
-				params: { id: checkId(id) },
+				params: { id: checkPieId(id) },
 				body: pie,
 			},
 		);
@@ -78,7 +78,7 @@ export class PiesResource {
 
 	/** Deletes a pie. Scope `pies:write` · 1 request / 5 s. */
 	async delete(id: number, options: CallOptions = {}): Promise<void> {
-		await this.#context.transport.request(ENDPOINTS.deletePie, { ...options, params: { id: checkId(id) } });
+		await this.#context.transport.request(ENDPOINTS.deletePie, { ...options, params: { id: checkPieId(id) } });
 	}
 
 	/** Copies a pie under a new name. Scope `pies:write` · 1 request / 5 s. */
@@ -91,7 +91,7 @@ export class PiesResource {
 			ENDPOINTS.duplicatePie,
 			{
 				...options,
-				params: { id: checkId(id) },
+				params: { id: checkPieId(id) },
 				body: copy,
 			},
 		);

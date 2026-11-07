@@ -49,7 +49,7 @@ export function checkLimit(limit: number | undefined, field = "limit"): void {
  * the wild (a full path, a bare query, `""`, `"null"`), and refuses anything that would point the client elsewhere,
  * because the next request carries your credentials.
  */
-export function nextQuery(
+export function nextPageQuery(
 	nextPagePath: string | null | undefined,
 	endpoint: EndpointDefinition,
 	origin: string,
@@ -64,16 +64,16 @@ export function nextQuery(
 	try {
 		url = new URL(relative, origin);
 	} catch {
-		throw unsafePath(endpoint);
+		throw unsafeNextPage(endpoint);
 	}
 	if (url.origin !== origin || url.pathname !== endpoint.path || raw.startsWith("//") || raw.includes("\\")) {
-		throw unsafePath(endpoint);
+		throw unsafeNextPage(endpoint);
 	}
 	const query = url.search.replace(/^\?/, "");
 	return query === "" ? null : query;
 }
 
-function unsafePath(endpoint: EndpointDefinition): UnexpectedResponseError {
+function unsafeNextPage(endpoint: EndpointDefinition): UnexpectedResponseError {
 	return new UnexpectedResponseError(
 		`Trading 212 returned a nextPagePath for ${endpoint.id} that points somewhere else; it was not followed.`,
 		{ request: { method: endpoint.method, path: endpoint.path, endpoint: endpoint.id } },
@@ -81,8 +81,8 @@ function unsafePath(endpoint: EndpointDefinition): UnexpectedResponseError {
 }
 
 /** A cursor is a query string this library produced; refuse one that is anything else. */
-function checkCursor(cursor: string, endpoint: EndpointDefinition, origin: string): string {
-	const query = nextQuery(cursor, endpoint, origin);
+function cursorQuery(cursor: string, endpoint: EndpointDefinition, origin: string): string {
+	const query = nextPageQuery(cursor, endpoint, origin);
 	if (query === null || cursor.startsWith("/")) {
 		throw new ValidationError("cursor must be a nextCursor returned by an earlier page.", {
 			issues: [{ field: "cursor", message: "is not a cursor this library produced" }],
@@ -107,7 +107,7 @@ export class PagedList<T, F extends object = object> {
 		checkLimit(limit);
 		const call: CallOptions = { ...(signal && { signal }), ...(timeoutMs !== undefined && { timeoutMs }) };
 		if (cursor !== undefined) {
-			return this.#fetch(checkCursor(cursor, this.#endpoint, this.#transport.origin), call);
+			return this.#fetch(cursorQuery(cursor, this.#endpoint, this.#transport.origin), call);
 		}
 		const query = new URLSearchParams();
 		for (const [key, value] of Object.entries(filters)) {
@@ -122,7 +122,7 @@ export class PagedList<T, F extends object = object> {
 	async #fetch(rawQuery: string, call: CallOptions): Promise<Page<T>> {
 		const { data } = await this.#transport.request<WirePage<T> | undefined>(this.#endpoint, { ...call, rawQuery });
 		const items = Array.isArray(data?.items) ? data.items : [];
-		const following = nextQuery(data?.nextPagePath, this.#endpoint, this.#transport.origin);
+		const following = nextPageQuery(data?.nextPagePath, this.#endpoint, this.#transport.origin);
 		return {
 			items,
 			nextCursor: following,
@@ -145,7 +145,7 @@ export class PagedList<T, F extends object = object> {
 		try {
 			page = await this.list({ ...rest, limit: pageSize } as PageOptions & F);
 		} catch (error) {
-			throw withCursor(error, cursor);
+			throw attachCursor(error, cursor);
 		}
 		while (page) {
 			pages++;
@@ -159,13 +159,13 @@ export class PagedList<T, F extends object = object> {
 			try {
 				page = await page.next({ ...(rest.signal && { signal: rest.signal }) });
 			} catch (error) {
-				throw withCursor(error, cursor);
+				throw attachCursor(error, cursor);
 			}
 		}
 	}
 }
 
-function withCursor(error: unknown, cursor: string | undefined): unknown {
+function attachCursor(error: unknown, cursor: string | undefined): unknown {
 	if (error instanceof Trading212Error && cursor !== undefined) error.resumeCursor = cursor;
 	return error;
 }
