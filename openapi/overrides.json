@@ -1,0 +1,20 @@
+{
+	"$comment": "Corrections where the live docs disagree with the vendored spec. scripts/generateApi.ts applies these and warns when the spec has caught up, so each entry can be deleted.",
+	"rateLimits": {
+		"GET /api/v0/equity/history/orders": {
+			"requests": 20,
+			"periodSeconds": 60,
+			"source": "docs.trading212.com overview, 7 Nov 2026 (vendored spec says 6 / 1m0s)"
+		},
+		"GET /api/v0/equity/history/dividends": {
+			"requests": 20,
+			"periodSeconds": 60,
+			"source": "docs.trading212.com overview, 7 Nov 2026 (vendored spec says 6 / 1m0s)"
+		},
+		"GET /api/v0/equity/history/transactions": {
+			"requests": 20,
+			"periodSeconds": 60,
+			"source": "docs.trading212.com overview, 7 Nov 2026 (vendored spec says 6 / 1m0s)"
+		}
+	}
+}
