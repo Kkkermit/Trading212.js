@@ -21,6 +21,7 @@ real money, so **safety beats convenience in every trade-off**.
 | `npm run test:demo`        | Contract tests against the **demo** API; needs `T212_DEMO_API_KEY` / `_SECRET`                        |
 | `npm run fixtures:capture` | Record real demo error bodies into `fixtures/errors.json`                                             |
 | `npm run example <file>`   | Run an example against the source, such as `examples/try-it-offline.ts`                               |
+| `npm run docs:dev`         | Preview the documentation site; installs its dependencies on the first run                            |
 | `npm run smoke`            | Run the built package in Node, as ESM and CommonJS; CI also runs it in Bun and Deno                   |
 | `npm run secrets`          | Scan the repository for committed secrets                                                             |
 | `npm run changeset`        | Describe a user-facing change for the changelog                                                       |
@@ -89,8 +90,9 @@ docs/                     the documentation site (Astro Starlight); pages are MD
 
 ## Documentation
 
-- The site in `docs/` is its own npm package with its own lockfile: `npm ci --prefix docs`, then `npm run docs:dev`
-  to preview or `npm run docs:build` to build. The build fails on a broken link between pages.
+- The site in `docs/` is its own npm package with its own lockfile, and needs Node 22.23.4 or later. `npm run docs:dev`
+  previews it and `npm run docs:build` builds it; both go through `scripts/docs.mjs`, which installs the site's
+  dependencies on the first run. The build fails on a broken link between pages.
 - GitHub Pages serves the site under `/Trading212.js/`, so a link between pages starts with that base, such as
   `/Trading212.js/guides/orders/`.
 - Leave a blank line between a component such as `<TabItem>` and the Markdown inside it, or Prettier folds a code

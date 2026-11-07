@@ -42,7 +42,7 @@ export default tseslint.config(
 	{ files: ["**/*.mjs", "**/*.cjs"], ...tseslint.configs.disableTypeChecked },
 	{
 		files: ["scripts/*.mjs", "scripts/*.cjs"],
-		languageOptions: { globals: { console: "readonly", require: "readonly" } },
+		languageOptions: { globals: { console: "readonly", require: "readonly", process: "readonly" } },
 		rules: { "no-console": "off", "@typescript-eslint/no-require-imports": "off" },
 	},
 	{ files: ["scripts/*.cjs"], languageOptions: { sourceType: "commonjs" } },

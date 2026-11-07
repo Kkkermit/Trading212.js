@@ -102,8 +102,8 @@
 		"prepare": "husky",
 		"smoke": "node scripts/smoke.mjs && node scripts/smoke.cjs",
 		"example": "tsx --tsconfig examples/tsconfig.json",
-		"docs:dev": "npm --prefix docs run dev",
-		"docs:build": "npm --prefix docs run build"
+		"docs:dev": "node scripts/docs.mjs dev",
+		"docs:build": "node scripts/docs.mjs build"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.18.5",
