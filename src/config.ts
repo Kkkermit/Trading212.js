@@ -9,12 +9,12 @@ import type { Logger } from "./logging/logger";
 export interface Trading212Options {
 	/** Required, with no default: `demo` for paper trading or `live` for real money. */
 	environment: Environment;
-	/** The API key from the Trading 212 app (Settings > API). */
+	/** The API key from the Trading 212 app, under Settings > API (Beta). */
 	apiKey: string;
 	/** The secret shown once when the key was made. */
 	apiSecret: string;
 	/**
-	 * Whether this client may place, cancel or change anything. Defaults to `enabled` on Trading 212's demo host and
+	 * Whether this client may place or cancel orders and change pies. Defaults to `enabled` on Trading 212's demo host and
 	 * `disabled` everywhere else, so a live client, or one behind a custom `baseUrl`, only reads until you say otherwise.
 	 * `disabled` is honoured on demo too.
 	 */
@@ -71,7 +71,7 @@ function fail(field: string, message: string, hint?: string): never {
 function checkCredential(field: "apiKey" | "apiSecret", value: unknown): string {
 	const label = field === "apiKey" ? "API key" : "API secret";
 	if (typeof value !== "string" || value.length === 0) {
-		fail(field, `The ${label} is missing.`, "Create a key in the Trading 212 app under Settings > API.");
+		fail(field, `The ${label} is missing.`, "Create a key in the Trading 212 app under Settings > API (Beta).");
 	}
 	if (value.trim() !== value) {
 		fail(field, `The ${label} starts or ends with whitespace.`, "This is usually a copy-paste slip: trim it.");
@@ -85,7 +85,7 @@ function positiveMs(field: string, value: unknown, fallback: number, max: number
 	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > max) {
 		fail(field, `${field} must be a positive number of milliseconds no greater than ${max}.`);
 	}
-	return value;
+	return Math.ceil(value);
 }
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);

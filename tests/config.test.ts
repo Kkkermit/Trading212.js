@@ -72,6 +72,7 @@ describe("resolveOptions", () => {
 		expect(fieldOf({ ...base, rateLimit: "fast" })).toBe("rateLimit");
 		expect(fieldOf({ ...base, timeoutMs: 0 })).toBe("timeoutMs");
 		expect(fieldOf({ ...base, timeoutMs: Number.NaN })).toBe("timeoutMs");
+		expect(resolveOptions({ ...base, timeoutMs: 1500.5 }).timeoutMs).toBe(1501);
 		expect(fieldOf({ ...base, retry: { maxAttempts: 0 } })).toBe("retry.maxAttempts");
 		expect(fieldOf({ ...base, retry: { maxAttempts: 1.5 } })).toBe("retry.maxAttempts");
 		expect(fieldOf({ ...base, retry: { baseDelayMs: -1 } })).toBe("retry.baseDelayMs");

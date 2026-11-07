@@ -1,3 +1,4 @@
+import { isList } from "../cache";
 import { InstrumentNotFoundError, ValidationError } from "../errors/errors";
 import { ENDPOINTS } from "../http/endpoints.generated";
 import type { TradableInstrument } from "../types/api.generated";
@@ -74,13 +75,11 @@ export class InstrumentsResource {
 		const { cache, cacheNamespace, metadataTtlMs, transport } = this.#context;
 		return cache.load(
 			`${cacheNamespace}:instruments`,
-			metadataTtlMs,
-			refresh,
+			{ ttlMs: metadataTtlMs, refresh, signal, accept: isList<Instrument> },
 			async () => {
 				const { data } = await transport.request<TradableInstrument[] | undefined>(ENDPOINTS.listInstruments);
 				return Array.isArray(data) ? data.filter(hasTicker) : [];
 			},
-			signal,
 		);
 	}
 
@@ -131,7 +130,8 @@ export class InstrumentsResource {
 		const best = ranked[0];
 		const top = best ? matchScore(best, query.trim()) : 0;
 		const tied = ranked.filter((instrument) => matchScore(instrument, query.trim()) === top);
-		// An exact ticker, ISIN, short name or full name counts; a prefix or a word inside the name does not.
+		// An exact ticker, ISIN, short name or full name counts, and so does a ticker missing only its suffix (AAPL for
+		// AAPL_US_EQ); a word inside the name does not.
 		if (best && top >= 80 && tied.length === 1) return best;
 		const suggestions = ranked
 			.slice(0, 5)

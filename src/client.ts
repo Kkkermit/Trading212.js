@@ -7,7 +7,7 @@ import { type EndpointBudget, RateLimiter } from "./http/rateLimiter";
 import { type CallOptions, type FetchLike, Transport } from "./http/transport";
 import { fingerprint } from "./internal/hash";
 import { safeLogger, silentLogger } from "./logging/logger";
-import { createRedactor } from "./logging/redact";
+import { createRedactor, createSecretFilter } from "./logging/redact";
 import { AccountResource } from "./resources/account";
 import type { ResourceContext } from "./resources/context";
 import { ExchangesResource } from "./resources/exchanges";
@@ -70,7 +70,8 @@ export class Trading212 {
 	constructor(options: Trading212Options) {
 		const resolved = resolveOptions(options);
 		const authorization = basicAuthorization(resolved.apiKey, resolved.apiSecret);
-		const redact = createRedactor([resolved.apiKey, resolved.apiSecret, authorization.slice("Basic ".length)]);
+		const secrets = [resolved.apiKey, resolved.apiSecret, authorization.slice("Basic ".length)];
+		const redact = createRedactor(secrets);
 		const logger = safeLogger(options.logger ?? silentLogger, redact);
 		const fetchImpl: FetchLike | undefined =
 			options.fetch ?? (globalThis.fetch as FetchLike | undefined)?.bind(globalThis);
@@ -99,6 +100,7 @@ export class Trading212 {
 			logger,
 			hooks: options.hooks ?? {},
 			redact,
+			removeSecrets: createSecretFilter(secrets),
 			userAgent: `trading212.js/${VERSION}${options.userAgent ? ` ${options.userAgent}` : ""}`,
 			trading: resolved.trading,
 		});
@@ -137,7 +139,7 @@ export class Trading212 {
 		return new Trading212({ ...optionsFromEnv(env), ...overrides });
 	}
 
-	/** Whether this client may place, cancel or change anything. */
+	/** Whether this client may place or cancel orders and change pies. */
 	get trading(): "enabled" | "disabled" {
 		return this.#transport.tradingEnabled ? "enabled" : "disabled";
 	}

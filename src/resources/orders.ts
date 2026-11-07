@@ -2,6 +2,7 @@ import { NotFoundError, TimeoutError, ValidationError } from "../errors/errors";
 import type { EndpointDefinition } from "../http/endpoint";
 import { ENDPOINTS } from "../http/endpoints.generated";
 import type { CallOptions } from "../http/transport";
+import { durationOption } from "../internal/duration";
 import { sleep } from "../internal/sleep";
 import { truncateQuantity } from "../orders/quantity";
 import { type OrderTimeValidity, type OrderType, validateOrder } from "../orders/validate";
@@ -266,35 +267,48 @@ export class OrdersResource {
 
 	/**
 	 * Waits until an order is filled, cancelled or rejected, and returns it in its final state. It polls the pending
-	 * order, and once that is gone looks the order up in the history.
+	 * order, and once that is gone looks the order up in the history, so the key needs `history:orders` as well.
+	 * `timeoutMs` bounds the whole wait, including any wait for rate-limit budget.
 	 */
 	async waitFor(order: Order | number, options: WaitOptions = {}): Promise<Order> {
-		const { timeoutMs = 60_000, intervalMs = 1000, signal } = options;
+		const { signal } = options;
+		const timeoutMs = durationOption(options.timeoutMs, "timeoutMs") ?? 60_000;
+		const intervalMs = durationOption(options.intervalMs, "intervalMs") ?? 1000;
 		const id = checkOrderId(typeof order === "number" ? order : order.id);
 		let ticker = typeof order === "number" ? undefined : (order.ticker ?? order.instrument?.ticker ?? undefined);
 		let last = typeof order === "number" ? undefined : order;
+		let gone = false;
 		const deadline = Date.now() + timeoutMs;
-		const call = signal ? { signal } : {};
-		for (;;) {
-			try {
-				const current = await this.get(id, call);
-				last = current;
-				ticker ??= current.ticker ?? current.instrument?.ticker ?? undefined;
-				if (current.status && FINAL_ORDER_STATUSES.has(current.status)) return current;
-			} catch (error) {
-				if (!(error instanceof NotFoundError)) throw error;
-				const settled = await this.#fromHistory(id, ticker, call);
-				if (settled) return settled;
+		const expiry = AbortSignal.timeout(timeoutMs);
+		const call = { signal: signal ? AbortSignal.any([signal, expiry]) : expiry };
+		const timedOut = (): TimeoutError =>
+			new TimeoutError(`Order ${id} had not settled after ${timeoutMs} ms (last seen ${last?.status ?? "pending"}).`, {
+				hint: "It may still fill. Check it again with orders.get() or history.orders.list().",
+			});
+		try {
+			for (;;) {
+				if (!gone) {
+					try {
+						const current = await this.get(id, call);
+						last = current;
+						ticker ??= current.ticker ?? current.instrument?.ticker ?? undefined;
+						if (current.status && FINAL_ORDER_STATUSES.has(current.status)) return current;
+					} catch (error) {
+						if (!(error instanceof NotFoundError)) throw error;
+						// A pending order that has gone never comes back, so from here only the history is asked.
+						gone = true;
+					}
+				}
+				if (gone) {
+					const settled = await this.#fromHistory(id, ticker, call);
+					if (settled) return settled;
+				}
+				if (Date.now() + intervalMs > deadline) throw timedOut();
+				await sleep(intervalMs, call.signal);
 			}
-			if (Date.now() + intervalMs > deadline) {
-				throw new TimeoutError(
-					`Order ${id} had not settled after ${timeoutMs} ms (last seen ${last?.status ?? "pending"}).`,
-					{
-						hint: "It may still fill. Check it again with orders.get() or history.orders.list().",
-					},
-				);
-			}
-			await sleep(intervalMs, signal);
+		} catch (error) {
+			if (expiry.aborted && !signal?.aborted) throw timedOut();
+			throw error;
 		}
 	}
 

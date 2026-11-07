@@ -73,6 +73,22 @@ describe("requests", () => {
 	});
 });
 
+describe("durations", () => {
+	/** AbortSignal.timeout throws a bare RangeError for a fraction, and a timer fires at once for a negative wait. */
+	it("rounds a fractional timeout up and refuses one that is not positive, before sending", async () => {
+		const { client, requests } = scripted([{ body: SUMMARY }]);
+		await expect(client.account.summary({ timeoutMs: 1500.5 })).resolves.toEqual(SUMMARY);
+		for (const timeoutMs of [-1, 0, Number.NaN, 2 ** 31]) {
+			await expect(client.account.summary({ timeoutMs }), String(timeoutMs)).rejects.toBeInstanceOf(ValidationError);
+		}
+		await expect(client.orders.waitFor(1, { intervalMs: 0 })).rejects.toBeInstanceOf(ValidationError);
+		await expect(client.reports.download("https://example.com/r.csv", { timeoutMs: -5 })).rejects.toBeInstanceOf(
+			ValidationError,
+		);
+		expect(requests).toHaveLength(1);
+	});
+});
+
 describe("retries", () => {
 	it("retries a read after a server error, then succeeds", async () => {
 		const { client, requests } = scripted([{ status: 503 }, { status: 502 }, { body: SUMMARY }]);
@@ -339,9 +355,9 @@ describe("responses that break while being read", () => {
 			{ status },
 		);
 
-	/** A server error on a trade leaves its outcome open even if the body never arrives. */
-	it("reports a trade as an unknown outcome after a 5xx or 408", async () => {
-		for (const status of [500, 503, 408]) {
+	/** A server error or a redirect on a trade leaves its outcome open even if the body never arrives. */
+	it("reports a trade as an unknown outcome after a 5xx, 408 or 3xx", async () => {
+		for (const status of [500, 503, 408, 302]) {
 			const { client } = scripted([], { fetch: () => Promise.resolve(breaking(status)) });
 			await expect(client.orders.market(ORDER), String(status)).rejects.toBeInstanceOf(OrderOutcomeUnknownError);
 		}

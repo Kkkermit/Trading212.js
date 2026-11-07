@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createFakeTrading212 } from "../../src/testing";
+import { scripted } from "../helpers";
 
 describe("history", () => {
 	it("pages through dividends and transactions", async () => {
@@ -19,5 +20,11 @@ describe("history", () => {
 		expect(first.nextCursor).toContain("time=");
 		expect((await Array.fromAsync(client.history.transactions.all({ pageSize: 2 }))).length).toBe(5);
 		await expect(Array.fromAsync(client.history.transactions.all({ pageSize: 99 }))).rejects.toThrow("pageSize");
+	});
+
+	it("starts transactions from a time, as the spec allows", async () => {
+		const { client, requests } = scripted([{ body: { items: [], nextPagePath: null } }]);
+		await client.history.transactions.list({ time: new Date("2026-01-01T00:00:00Z"), limit: 10 });
+		expect(requests[0]?.query).toEqual({ time: "2026-01-01T00:00:00.000Z", limit: "10" });
 	});
 });

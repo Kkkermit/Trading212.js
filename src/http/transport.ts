@@ -12,6 +12,7 @@ import {
 } from "../errors/errors";
 import { errorFromResponse } from "../errors/fromResponse";
 import { HINTS } from "../errors/hints";
+import { durationOption } from "../internal/duration";
 import { sleep } from "../internal/sleep";
 import type { Logger } from "../logging/logger";
 import type { Redactor } from "../logging/redact";
@@ -67,6 +68,8 @@ interface TransportConfig {
 	readonly logger: Logger;
 	readonly hooks: Hooks;
 	readonly redact: Redactor;
+	/** For success bodies: removes the credentials without touching text that only looks like one. */
+	readonly removeSecrets: (text: string) => string;
 	readonly userAgent: string;
 	readonly trading: "enabled" | "disabled";
 }
@@ -175,9 +178,10 @@ export class Transport {
 		};
 	}
 
-	async request<T>(endpoint: EndpointDefinition, options: RequestOptions = {}): Promise<TransportResponse<T>> {
-		const { url, ...description } = this.describe(endpoint, options);
+	async request<T>(endpoint: EndpointDefinition, given: RequestOptions = {}): Promise<TransportResponse<T>> {
+		const { url, ...description } = this.describe(endpoint, given);
 		const config = this.#config;
+		const options = { ...given, timeoutMs: durationOption(given.timeoutMs, "timeoutMs") ?? config.timeoutMs };
 		if (endpoint.kind === "trade" && !this.tradingEnabled) {
 			throw new TradingDisabledError(`Refused to send ${description.method} ${description.path}: trading is off.`, {
 				request: description,
@@ -299,11 +303,12 @@ export class Transport {
 		if (rateLimit) config.rateLimiter.update(endpoint, rateLimit, Date.now());
 
 		try {
+			const raw = await response.text();
 			// Redacted before it is cut, so a secret straddling the cut is still found whole.
-			text = config.redact(await response.text()) as string;
+			text = response.ok ? config.removeSecrets(raw) : (config.redact(raw) as string);
 		} catch (error) {
-			// Once Trading 212 has answered, only a success, a timeout or a server error leaves a trade's outcome open.
-			const mayHaveRun = response.status < 300 || response.status === 408 || response.status >= 500;
+			// Once Trading 212 has answered, only a client error proves a trade did not run.
+			const mayHaveRun = response.status < 400 || response.status === 408 || response.status >= 500;
 			throw this.#requestFailure(error, endpoint, description, options, timeout, timeoutMs, mayHaveRun);
 		}
 
@@ -362,14 +367,14 @@ export class Transport {
 						status,
 						request: description,
 						sent: options.body,
-						body: text.slice(0, 2000),
+						body: this.#config.redact(text.slice(0, 2000)),
 						hint: HINTS.outcomeUnknown,
 						cause,
 					})
 				: new UnexpectedResponseError(`${where} ${message}.`, {
 						status,
 						request: description,
-						body: text.slice(0, 2000),
+						body: this.#config.redact(text.slice(0, 2000)),
 						cause,
 					});
 		if (!text.trim()) {
@@ -432,7 +437,7 @@ export class Transport {
 		return new NetworkError(`${where} failed: ${failure}${code ? ` (${code})` : ""}.`, {
 			request: description,
 			sent,
-			hint: HINTS.network(sent),
+			hint: HINTS.network(sent, endpoint.kind),
 			cause: error,
 		});
 	}

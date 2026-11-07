@@ -4,7 +4,7 @@ import type { RateLimitInfo } from "./rateLimitHeaders";
 /**
  * - `pace` (default) spreads calls evenly over each period, as Trading 212 recommends, so 429s should not happen.
  * - `burst` spends a period's whole allowance at once, then waits for the reset.
- * - `off` sends immediately and leaves 429s to the caller.
+ * - `off` sends immediately; a read that meets a 429 is still retried after the reset.
  */
 export type RateLimitMode = "pace" | "burst" | "off";
 

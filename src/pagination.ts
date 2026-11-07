@@ -101,7 +101,6 @@ export class PagedList<T, F extends object = object> {
 		this.#endpoint = endpoint;
 	}
 
-	/** Fetches one page. */
 	async list(options: PageOptions & F = {} as PageOptions & F): Promise<Page<T>> {
 		const { limit, cursor, signal, timeoutMs, ...filters } = options;
 		checkLimit(limit);
@@ -159,7 +158,8 @@ export class PagedList<T, F extends object = object> {
 				yield item;
 				yielded++;
 			}
-			if (!page.hasMore || (maxPages !== undefined && pages >= maxPages)) return;
+			const full = (maxPages !== undefined && pages >= maxPages) || (maxItems !== undefined && yielded >= maxItems);
+			if (!page.hasMore || full) return;
 			cursor = page.nextCursor ?? undefined;
 			if (cursor !== undefined) {
 				if (seen.has(cursor)) {

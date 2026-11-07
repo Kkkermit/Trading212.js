@@ -3,14 +3,30 @@
  * them between processes; each method may return a promise, and values are plain JSON.
  */
 export interface CacheStore {
+	/** `undefined` or `null` means a miss. */
 	get(key: string): unknown;
-	set(key: string, value: unknown, ttlMs: number): void | Promise<void>;
-	delete?(key: string): void | Promise<void>;
+	set(key: string, value: unknown, ttlMs: number): unknown;
+	delete?(key: string): unknown;
+}
+
+export interface LoadOptions<T> {
+	readonly ttlMs: number;
+	/** Skip the cache and load afresh. */
+	readonly refresh?: boolean;
+	/** Stops this caller waiting; a load other callers share carries on. */
+	readonly signal?: AbortSignal | undefined;
+	/** Rejects a cached value of the wrong shape, which is then reported and loaded afresh. */
+	readonly accept?: (value: unknown) => value is T;
 }
 
 interface Entry {
 	value: unknown;
 	expiresAt: number;
+}
+
+/** For `LoadOptions.accept`: the cached value must be a list. */
+export function isList<T>(value: unknown): value is T[] {
+	return Array.isArray(value);
 }
 
 /** The default store: a `Map` with expiry, private to one client. */
@@ -58,13 +74,8 @@ export class CachedLoader {
 	 * The shared load is started without any caller's signal, so one caller giving up never fails the others; each
 	 * caller stops waiting when its own `signal` aborts.
 	 */
-	async load<T>(
-		key: string,
-		ttlMs: number,
-		refresh: boolean,
-		loader: () => Promise<T>,
-		signal?: AbortSignal,
-	): Promise<T> {
+	async load<T>(key: string, options: LoadOptions<T>, loader: () => Promise<T>): Promise<T> {
+		const { ttlMs, refresh = false, signal, accept } = options;
 		if (signal?.aborted) throw signal.reason as Error;
 		if (!refresh) {
 			let cached: unknown;
@@ -73,7 +84,10 @@ export class CachedLoader {
 			} catch (error) {
 				this.#onError(error, key);
 			}
-			if (cached !== undefined) return cached as T;
+			if (cached !== undefined && cached !== null) {
+				if (!accept || accept(cached)) return cached as T;
+				this.#onError(new TypeError("The cache store returned a value of the wrong shape."), key);
+			}
 		}
 		const pending = this.#inFlight.get(key);
 		if (pending) return untilAborted(pending as Promise<T>, signal);

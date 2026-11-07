@@ -4,7 +4,7 @@ import { decimalPlaces, QUANTITY_DECIMALS } from "./quantity";
 
 export const TIME_VALIDITIES = ["DAY", "GOOD_TILL_CANCEL"] as const;
 
-/** `DAY` expires at the end of the trading day; `GOOD_TILL_CANCEL` stays until it fills or you cancel it. */
+/** `DAY` expires at midnight in the exchange's time zone; `GOOD_TILL_CANCEL` stays until it fills or you cancel it. */
 export type OrderTimeValidity = (typeof TIME_VALIDITIES)[number];
 
 export type OrderType = "market" | "limit" | "stop" | "stopLimit";

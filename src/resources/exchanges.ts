@@ -1,3 +1,4 @@
+import { isList } from "../cache";
 import { InstrumentNotFoundError } from "../errors/errors";
 import { ENDPOINTS } from "../http/endpoints.generated";
 import type { Exchange, TimeEvent, TradableInstrument } from "../types/api.generated";
@@ -90,13 +91,11 @@ export class ExchangesResource {
 		const { cache, cacheNamespace, metadataTtlMs, transport } = this.#context;
 		return cache.load(
 			`${cacheNamespace}:exchanges`,
-			metadataTtlMs,
-			refresh,
+			{ ttlMs: metadataTtlMs, refresh, signal, accept: isList<Exchange> },
 			async () => {
 				const { data } = await transport.request<Exchange[] | undefined>(ENDPOINTS.listExchanges);
 				return Array.isArray(data) ? data : [];
 			},
-			signal,
 		);
 	}
 

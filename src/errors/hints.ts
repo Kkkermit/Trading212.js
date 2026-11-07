@@ -5,7 +5,7 @@ export const HINTS = {
 	authentication: (environment: Environment): string =>
 		`Trading 212 refused the key and secret. Check both were copied exactly, with no spaces. A key works in one environment only: this client is set to ${environment}, so the key must have been made while the app was in ${environment === "demo" ? "practice (demo)" : "real-money (live)"} mode.`,
 	missingScope: (scope: string): string =>
-		`This API key does not have the "${scope}" permission. In the Trading 212 app, go to Settings > API and create a key with "${scope}" ticked.`,
+		`This API key does not have the "${scope}" permission. In the Trading 212 app, go to Settings > API (Beta) and create a key with "${scope}" ticked.`,
 	notAvailableInDemo:
 		"Trading 212 does not offer this in the demo environment. It works on live only (CSV exports are one example).",
 	permission:
@@ -26,10 +26,12 @@ export const HINTS = {
 			: "Trading 212 had a problem of its own. Requests that change something are never retried automatically.",
 	tradingDisabled:
 		'Trading is off for this client, which is the default on live and behind a custom baseUrl, so nothing was sent. Pass `trading: "enabled"` to place orders, or `{ dryRun: true }` to preview one.',
-	network: (sent: boolean): string =>
-		sent
+	network: (sent: boolean, kind: EndpointKind): string => {
+		if (!sent) return "Could not reach Trading 212 at all: check the network, DNS and any proxy. Nothing was sent.";
+		return kind === "read"
 			? "The connection broke while waiting for Trading 212. Reads are retried automatically; this one ran out of attempts."
-			: "Could not reach Trading 212 at all: check the network, DNS and any proxy. Nothing was sent.",
+			: "The connection broke while waiting for Trading 212. Requests that change something are never retried automatically.";
+	},
 } as const;
 
 export const ORDER_REJECTION_HINTS = {

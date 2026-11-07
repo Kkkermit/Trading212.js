@@ -93,8 +93,9 @@ docs/                     the guides
   no trade retries, unknown outcomes after a 5xx or an interrupted body, pinned pagination, manual redirects,
   truncation, the position match, credential-free downloads, refused rate-limit reservations booking nothing, cache
   failures being bypassed, the live switch behind a custom `baseUrl`, unknown outcomes for unreadable successes and
-  redirects, waiting calls rechecking a 429, aborts not crossing between callers of a shared download, and the
-  frozen endpoint table. Keep it true.
+  redirects, waiting calls rechecking a 429, aborts not crossing between callers of a shared download, the
+  frozen endpoint table, success bodies kept intact by redaction, a 3xx with a broken body on a trade, a `null` cache
+  miss, invalid durations refused before sending, and `waitFor` asking only the history once an order has gone. Keep it true.
 - Name the behaviour, not the implementation. A one-line `/** */` above a test says which bug it pins.
 - Prefer the fake server for behaviour and `scriptedFetch` for exact HTTP.
 - Each test starts with empty rate-limit budgets (`tests/setup.ts`).

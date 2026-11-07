@@ -1,6 +1,7 @@
 import { NetworkError, TimeoutError, UnexpectedResponseError, ValidationError } from "../errors/errors";
 import { ENDPOINTS } from "../http/endpoints.generated";
 import type { CallOptions } from "../http/transport";
+import { durationOption } from "../internal/duration";
 import { sleep } from "../internal/sleep";
 import { stripQuery } from "../logging/redact";
 import type { EnqueuedReportResponse, ReportResponse } from "../types/api.generated";
@@ -67,7 +68,7 @@ export class ReportsResource {
 	}
 
 	/**
-	 * Asks Trading 212 to build a CSV report, and returns its ID. Trading 212 may notify the account's app.
+	 * Asks Trading 212 to build a CSV report, and returns its ID.
 	 *
 	 * 1 request / 30 s.
 	 */
@@ -107,7 +108,9 @@ export class ReportsResource {
 
 	/** Checks a report until it is finished, and returns it. Throws if it failed or was cancelled. */
 	async waitFor(reportId: number, options: ReportWaitOptions = {}): Promise<ReportResponse> {
-		const { timeoutMs = 10 * 60_000, intervalMs = 60_000, onStatus, ...call } = options;
+		const { timeoutMs: wait, intervalMs: interval, onStatus, ...call } = options;
+		const timeoutMs = durationOption(wait, "timeoutMs") ?? 10 * 60_000;
+		const intervalMs = durationOption(interval, "intervalMs") ?? 60_000;
 		const deadline = Date.now() + timeoutMs;
 		for (;;) {
 			const report = (await this.list(call)).find((candidate) => candidate.reportId === reportId);
@@ -155,7 +158,7 @@ export class ReportsResource {
 				issues: [{ field: "downloadLink", message: "must be https" }],
 			});
 		}
-		const timeoutMs = options.timeoutMs ?? Math.max(this.#context.timeoutMs, 120_000);
+		const timeoutMs = durationOption(options.timeoutMs, "timeoutMs") ?? Math.max(this.#context.timeoutMs, 120_000);
 		const timeout = AbortSignal.timeout(timeoutMs);
 		const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
 		const where = stripQuery(url.toString());

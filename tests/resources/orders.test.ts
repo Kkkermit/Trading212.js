@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { NotFoundError, OrderRejectedError, TimeoutError, ValidationError } from "../../src/errors/errors";
 import { createFakeTrading212 } from "../../src/testing";
 
-import { scripted } from "../helpers";
+import { hangingFetch, scripted } from "../helpers";
 
 describe("orders", () => {
 	it("buys and sells with the sign set for you", async () => {
@@ -138,6 +138,27 @@ describe("orders", () => {
 		await expect(missing.client.orders.waitFor(424242, { timeoutMs: 5, intervalMs: 10 })).rejects.toThrow("pending");
 		const broken = scripted([{ status: 401 }]);
 		await expect(broken.client.orders.waitFor(5)).rejects.not.toBeInstanceOf(NotFoundError);
+	});
+
+	/** History allows 20 requests a minute, so a gone order must not keep costing a getOrder as well. */
+	it("asks only the history once the pending order has gone", async () => {
+		const notFound = { status: 404, body: { code: "OrderNotFound" } };
+		const empty = { body: { items: [], nextPagePath: null } };
+		const found = { body: { items: [{ order: { id: 7, status: "FILLED" } }], nextPagePath: null } };
+		const { client, requests } = scripted([notFound, empty, found]);
+		await expect(client.orders.waitFor(7, { intervalMs: 1 })).resolves.toMatchObject({ status: "FILLED" });
+		expect(requests.map((request) => request.path)).toEqual([
+			"/api/v0/equity/orders/7",
+			"/api/v0/equity/history/orders",
+			"/api/v0/equity/history/orders",
+		]);
+	});
+
+	it("stops at its deadline even while a request is still waiting", async () => {
+		const { client } = scripted([], { fetch: hangingFetch() });
+		const started = Date.now();
+		await expect(client.orders.waitFor(7, { timeoutMs: 50 })).rejects.toBeInstanceOf(TimeoutError);
+		expect(Date.now() - started).toBeLessThan(1000);
 	});
 });
 

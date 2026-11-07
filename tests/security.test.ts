@@ -48,6 +48,15 @@ describe("credentials never leak", () => {
 		for (const value of walk(client)) expect(leaks(value)).toEqual([]);
 	});
 
+	/** The pattern that catches other Basic headers must not rewrite real data, such as a fund's name. */
+	it("from a success body, without touching text that only looks like a credential", async () => {
+		const name = "iShares U.S. Basic Materials ETF";
+		const { client } = scripted([{ body: { id: 1, currency: `GBP ${API_SECRET}`, name } }]);
+		const summary = (await client.account.summary()) as unknown as Record<string, unknown>;
+		expect(leaks(summary)).toEqual([]);
+		expect(summary.name).toBe(name);
+	});
+
 	it("from an error built on a response that echoes them", async () => {
 		const { client } = scripted([echo]);
 		const error = (await client.account.summary().catch((caught: unknown) => caught)) as Trading212Error;

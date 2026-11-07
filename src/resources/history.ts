@@ -24,11 +24,11 @@ export class HistoryResource {
 	readonly dividends: PagedList<HistoryDividendItem, { ticker?: string }>;
 
 	/**
-	 * Deposits, withdrawals, fees, transfers and interest.
+	 * Deposits, withdrawals, fees, transfers and interest. `time` starts the list from that moment.
 	 *
 	 * Scope `history:transactions` · 20 requests / minute.
 	 */
-	readonly transactions: PagedList<HistoryTransactionItem>;
+	readonly transactions: PagedList<HistoryTransactionItem, { time?: Date | string }>;
 
 	constructor(context: ResourceContext) {
 		this.orders = new PagedList(context.transport, ENDPOINTS.listHistoricalOrders);

@@ -12,13 +12,8 @@ export type Redactor = (value: unknown) => unknown;
  * strips the signature from signed download links.
  */
 export function createRedactor(secrets: readonly string[]): Redactor {
-	const needles = [...new Set(secrets.filter((secret) => secret.length >= 4))].sort((a, b) => b.length - a.length);
-
-	const redactString = (text: string): string => {
-		let out = text.replace(BASIC_HEADER, `Basic ${REDACTED}`);
-		for (const needle of needles) out = out.split(needle).join(REDACTED);
-		return out;
-	};
+	const removeSecrets = createSecretFilter(secrets);
+	const redactString = (text: string): string => removeSecrets(text.replace(BASIC_HEADER, `Basic ${REDACTED}`));
 
 	const visit = (value: unknown, depth: number, seen: WeakSet<object>): unknown => {
 		if (typeof value === "string") return redactString(value);
@@ -40,6 +35,16 @@ export function createRedactor(secrets: readonly string[]): Redactor {
 	};
 
 	return (value) => visit(value, 0, new WeakSet());
+}
+
+/** Removes only the exact secrets, for data a caller will use, where a pattern could match real text. */
+export function createSecretFilter(secrets: readonly string[]): (text: string) => string {
+	const needles = [...new Set(secrets.filter((secret) => secret.length >= 4))].sort((a, b) => b.length - a.length);
+	return (text) => {
+		let out = text;
+		for (const needle of needles) out = out.split(needle).join(REDACTED);
+		return out;
+	};
 }
 
 /** A signed URL's query string is the credential, so only its origin and path are safe to show. */

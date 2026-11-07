@@ -105,6 +105,9 @@ describe("PagedList", () => {
 	it("stops at maxItems or maxPages", async () => {
 		const items = scripted([page([1, 2, 3], "limit=50&cursor=4")]);
 		expect((await Array.fromAsync(items.client.history.orders.all({ maxItems: 2 }))).length).toBe(2);
+		const exact = scripted([page([1, 2], "limit=2&cursor=3"), page([3], null)]);
+		expect((await Array.fromAsync(exact.client.history.orders.all({ pageSize: 2, maxItems: 2 }))).length).toBe(2);
+		expect(exact.requests).toHaveLength(1);
 		const pages = scripted([page([1], "limit=50&cursor=2"), page([2], "limit=50&cursor=3")]);
 		expect((await Array.fromAsync(pages.client.history.orders.all({ maxPages: 2 }))).length).toBe(2);
 		expect(pages.requests).toHaveLength(2);
