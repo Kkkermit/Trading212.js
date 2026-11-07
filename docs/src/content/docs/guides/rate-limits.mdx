@@ -1,0 +1,32 @@
+---
+title: Rate limits
+description: Per-endpoint budgets, the pace, burst and off modes, and sharing a budget between clients.
+---
+
+Trading 212 limits every endpoint separately, **per account**: every key and every IP address on the account shares
+one budget. The [API coverage](/Trading212.js/reference/api-coverage/) page lists each endpoint's limit;
+`ENDPOINTS` holds the same table at run time, and `t212.rateLimits()` shows what the last response headers said.
+
+## Modes
+
+| `rateLimit`      | Does                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------- |
+| `pace` (default) | Spreads calls evenly over each period, as Trading 212 recommends, so 429s should not happen |
+| `burst`          | Spends a period's whole allowance at once, then waits for the reset                         |
+| `off`            | Sends immediately; a read that meets a 429 is still retried after the reset                 |
+
+With `pace`, a second `positions.list()` within the same second waits rather than failing.
+
+In every mode the client corrects its budget from each response's `x-ratelimit-*` headers, so spending by another
+program on the same account counts as soon as it shows. If a call would have to wait longer than
+`maxRateLimitWaitMs` (default 60 s), it throws `RateLimitError` with `retryAfterMs` instead of hanging.
+
+## Several clients, several processes
+
+Clients made from the same key in the same process share one budget, even across ESM and CommonJS copies of the
+package. Two different keys for the same account cannot be told apart until Trading 212 answers, so they keep
+separate budgets and the response headers correct them. Separate processes cannot see each other's spending: run one
+process per account where you can, and let the headers and retries absorb the rest.
+
+If a 429 arrives while other calls are already waiting for a slot, they wait for the reset too rather than going out
+into a closed budget.

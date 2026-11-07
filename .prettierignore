@@ -4,3 +4,4 @@ openapi
 package-lock.json
 CHANGELOG.md
 .changeset/*.md
+.astro

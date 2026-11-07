@@ -63,8 +63,8 @@ npm install @kkermit/trading212.js
 Node 22 or later, Bun or Deno. Server-side only: Trading 212 refuses requests from web pages, and a key in a page is
 public, so the client refuses to start in a browser.
 
-New to it? [Getting started](docs/getting-started.md) goes from install to a working script step by step, starting
-with a try-out that needs no key. The [examples](examples) are complete programs.
+New to it? [Getting started](https://kkkermit.github.io/Trading212.js/getting-started/) goes from install to a working script step by step,
+starting with a try-out that needs no key. The [examples](examples) are complete programs.
 
 ## Get a key
 
@@ -150,9 +150,12 @@ There is no third environment: "production" and "real" mean `live`, and "paper",
 | `pies.delete()`                                    | `DELETE /equity/pies/{id}`         | `pies:write`           | 1 / 5 s  |
 
 ¹ Also needs `history:orders`, to find the order once it has left the pending list. ² `sellAll()` also needs
-`portfolio`, to read the position. Paths are under `/api/v0`. `portfolio.snapshot()` combines the account summary and positions. Trading 212 offers
-CSV exports on live only, and has deprecated the pie endpoints, which still work. The exported `ENDPOINTS` table holds
-the same facts at run time. See the [guides](#guides) for each part.
+`portfolio`, to read the position.
+
+Paths are under `/api/v0`. `portfolio.snapshot()` combines the account summary and positions. CSV exports are
+expected to be live only, which has not yet been confirmed against demo. Trading 212 has deprecated the pie
+endpoints, which still work. The exported `ENDPOINTS` table holds the same facts at run time. See the
+[documentation](#documentation) for each part.
 
 ## Safety around real money
 
@@ -249,16 +252,21 @@ server.failNext("getAccountSummary", { status: 503 }); // or { network: "ECONNRE
 
 `scriptedFetch()` is there too, for testing at the HTTP level.
 
-## Guides
+## Documentation
 
-- [Getting started](docs/getting-started.md): keys, environments, the doctor, configuration
-- [Orders](docs/orders.md): order types, quantities, `sellAll`, `waitFor`, dry runs
-- [Data](docs/data.md): instruments and tickers, market hours, history and pagination, reports, portfolio
-- [Errors](docs/errors.md): every error, what causes it and how to fix it
-- [Rate limits](docs/rate-limits.md): budgets, pacing, sharing between clients and processes
-- [Logging and hooks](docs/logging.md)
-- [Testing](docs/testing.md): the fake server and scripted fetch
-- [Safety and security](docs/safety.md)
+The full documentation is at **[kkkermit.github.io/Trading212.js](https://kkkermit.github.io/Trading212.js/)**. Its source is the MDX in
+[`docs/src/content/docs`](docs/src/content/docs).
+
+- [Getting started](https://kkkermit.github.io/Trading212.js/getting-started/): install, keys, the doctor and a first script
+- [API coverage](https://kkkermit.github.io/Trading212.js/reference/api-coverage/): every endpoint, its method, permission and limit
+- [Orders](https://kkkermit.github.io/Trading212.js/guides/orders/): order types, quantities, `sellAll`, `waitFor`, dry runs
+- [Instruments and market hours](https://kkkermit.github.io/Trading212.js/guides/instruments-and-markets/), [history](https://kkkermit.github.io/Trading212.js/guides/history/),
+  [CSV reports](https://kkkermit.github.io/Trading212.js/guides/reports/) and the [portfolio](https://kkkermit.github.io/Trading212.js/guides/account-and-portfolio/)
+- [Errors](https://kkkermit.github.io/Trading212.js/guides/errors/): every error, what causes it and how to fix it
+- [Rate limits](https://kkkermit.github.io/Trading212.js/guides/rate-limits/), [logging and hooks](https://kkkermit.github.io/Trading212.js/guides/logging/) and
+  [configuration](https://kkkermit.github.io/Trading212.js/reference/configuration/)
+- [Testing your code](https://kkkermit.github.io/Trading212.js/guides/testing/): the fake server and scripted fetch
+- [Safety and security](https://kkkermit.github.io/Trading212.js/guides/safety/)
 
 ## Status
 

@@ -53,8 +53,8 @@ scripts/                  generateApi, fetchSpec, captureErrors, and the smoke t
 tests/                    one file per source module at the same path; a folder's index.ts is tested in <folder>.test.ts
                           security.test.ts and exports.test.ts cover the whole package; tests/contract runs against demo only
 examples/                 type-checked; *.test.ts files run with the suite
-docs/                     the guides
-.github/                  CI, nightly, CodeQL, release and spec-drift workflows; Dependabot; issue and PR templates
+docs/                     the documentation site (Astro Starlight); pages are MDX in docs/src/content/docs
+.github/                  CI, nightly, CodeQL, release, docs and spec-drift workflows; Dependabot; issue and PR templates
 ```
 
 ## Rules that hold whatever the task
@@ -73,7 +73,8 @@ docs/                     the guides
    spec does not state is either confirmed against demo (contract test or `fixtures/errors.json`) or marked as
    unconfirmed where it is used. Never state API behaviour from memory.
 8. **Generated files are regenerated, never edited.** Corrections the live docs make go in `openapi/overrides.json`.
-9. **No publishing, tagging, releasing or repository settings changes.** Prepare them and say what to run.
+9. **No publishing, tagging, releasing or repository settings changes.** Prepare them and say what to run;
+   [`RELEASING.md`](RELEASING.md) has the steps.
 10. **A method that returns a promise never throws synchronously.** Make it `async`.
 
 ## Adding or changing an endpoint
@@ -84,7 +85,18 @@ docs/                     the guides
    the scope and rate limit, and an `@example` when it is not obvious.
 3. Teach `src/testing/fakeServer.ts` the route, so users' tests can use it.
 4. Test the method against the fake, and its failure modes with `scriptedFetch`.
-5. Document it in the right guide and add a changeset.
+5. Document it on the right page in `docs/src/content/docs`, add it to both endpoint tables, and add a changeset.
+
+## Documentation
+
+- The site in `docs/` is its own npm package with its own lockfile: `npm ci --prefix docs`, then `npm run docs:dev`
+  to preview or `npm run docs:build` to build. The build fails on a broken link between pages.
+- GitHub Pages serves the site under `/Trading212.js/`, so a link between pages starts with that base, such as
+  `/Trading212.js/guides/orders/`.
+- Leave a blank line between a component such as `<TabItem>` and the Markdown inside it, or Prettier folds a code
+  block into one line.
+- The endpoint tables in `README.md` and `reference/api-coverage.mdx` are checked against `ENDPOINTS` by
+  `tests/coverage.test.ts`.
 
 ## Tests
 

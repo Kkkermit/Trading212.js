@@ -1,0 +1,108 @@
+---
+title: Testing your code
+description: The fake Trading 212 and scripted fetch, for tests with no network and no key.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## The fake Trading 212
+
+`createFakeTrading212()` returns a real `Trading212` client whose `fetch` is an in-memory Trading 212, so your code
+runs exactly as it would against the API: validation, errors, pagination, the live-trading switch and all. There is
+no network and no key, and rate limiting is off so tests run instantly.
+
+```ts
+import { createFakeTrading212 } from "@kkermit/trading212.js/testing";
+
+const { client, server } = createFakeTrading212({
+	state: {
+		cash: 5000,
+		currency: "GBP",
+		prices: { AAPL_US_EQ: 200 },
+		positions: [{ ticker: "MSFT_US_EQ", quantity: 3, averagePrice: 380, inPies: 1 }],
+		dividends: [{ ticker: "MSFT_US_EQ", amount: 2.1, paidOn: "2026-06-12T00:00:00Z" }],
+	},
+});
+```
+
+What it does:
+
+- **Market orders fill at once** at the current price, moving cash and positions and writing history.
+- **Limit and stop orders wait** until you call `server.fill(orderId, price?)`. Their cash or shares are reserved.
+- **It refuses what Trading 212 refuses:** not enough cash, selling more than is available, more than 4 decimal
+  places, `extendedHours` on a non-market order, an unknown ticker, a closed market (`server.marketOpen = false`) and
+  the wrong key.
+- **History is paginated** with `nextPagePath`, like the real API.
+- **CSV exports are refused on demo.** Use `environment: "live"` or `server.exportsOnDemo = true` to test them. It
+  checks your code sends no credentials to the download link.
+
+Controls and state:
+
+```ts
+server.setPrice("AAPL_US_EQ", 250);
+server.failNext("placeMarketOrder", { status: 400, body: { code: "MarketClosed" } });
+server.failNext("getAccountSummary", { network: "ECONNRESET" });
+server.position("AAPL_US_EQ"); // as the API would return it
+server.cash;
+server.requests; // every request, without credentials
+```
+
+A live fake has trading enabled unless you say otherwise, so you can test the switch:
+
+```ts
+const { client } = createFakeTrading212({ environment: "live", client: { trading: "disabled" } });
+await expect(client.orders.buy(order)).rejects.toBeInstanceOf(TradingDisabledError);
+```
+
+<Aside>
+	The fake does not do currency conversion, fees or partial fills, and its market hours are a simple weekday schedule.
+</Aside>
+
+## A complete test
+
+```ts title="take-profit.test.ts"
+import type { Trading212 } from "@kkermit/trading212.js";
+import { createFakeTrading212 } from "@kkermit/trading212.js/testing";
+import { expect, it } from "vitest";
+
+// The code under test: sells a holding once it is up 10%.
+async function takeProfit(t212: Trading212, ticker: string): Promise<boolean> {
+	const position = await t212.positions.get(ticker);
+	if (!position?.averagePricePaid || !position.currentPrice) return false;
+	if (position.currentPrice < position.averagePricePaid * 1.1) return false;
+	await t212.orders.sellAll(ticker);
+	return true;
+}
+
+it("sells once the price is up 10%", async () => {
+	const { client, server } = createFakeTrading212({
+		state: { positions: [{ ticker: "AAPL_US_EQ", quantity: 3, averagePrice: 100 }] },
+	});
+	server.setPrice("AAPL_US_EQ", 105);
+	expect(await takeProfit(client, "AAPL_US_EQ")).toBe(false);
+	server.setPrice("AAPL_US_EQ", 111);
+	expect(await takeProfit(client, "AAPL_US_EQ")).toBe(true);
+	expect(server.position("AAPL_US_EQ")).toBeUndefined();
+});
+```
+
+The repository's
+[`examples/testing-your-bot.test.ts`](https://github.com/Kkkermit/Trading212.js/blob/main/examples/testing-your-bot.test.ts)
+holds this test and one for a closed market, and runs with every change to the library.
+
+## Scripted fetch
+
+For testing at the HTTP level, `scriptedFetch()` answers from a list, in order, and records every request:
+
+```ts
+import { Trading212 } from "@kkermit/trading212.js";
+import { networkError, scriptedFetch } from "@kkermit/trading212.js/testing";
+
+const { fetch, requests } = scriptedFetch([
+	{ status: 503 },
+	{ body: { id: 1, currency: "GBP" }, headers: { "x-ratelimit-remaining": "0" } },
+	(request) => ({ status: 200, body: { echoed: request.query } }),
+	networkError("ECONNREFUSED"),
+]);
+const t212 = new Trading212({ environment: "demo", apiKey: "k-test", apiSecret: "s-test", fetch, rateLimit: "off" });
+```

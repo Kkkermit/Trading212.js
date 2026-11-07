@@ -158,7 +158,7 @@ export class Trading212 {
 		};
 	}
 
-	/** What is known about every endpoint's rate-limit budget, shared by every client for this account. */
+	/** What is known about every endpoint's rate-limit budget, shared by every client using this key. */
 	rateLimits(): Record<EndpointId, EndpointBudget> {
 		return this.#transport.rateLimitSnapshot();
 	}

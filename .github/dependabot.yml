@@ -12,6 +12,16 @@ updates:
       tooling:
         dependency-type: development
         update-types: [minor, patch]
+  - package-ecosystem: npm
+    directory: /docs
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: chore
+    groups:
+      docs:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

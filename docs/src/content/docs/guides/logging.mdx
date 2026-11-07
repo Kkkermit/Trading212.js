@@ -1,8 +1,11 @@
-# Logging and hooks
+---
+title: Logging and hooks
+description: Sending the client's log lines anywhere, logging errors safely, and hooks for metrics and tracing.
+---
 
 ## Loggers
 
-The client says nothing unless given a logger: anything with `debug`, `info`, `warn` and `error` methods taking
+The client says nothing unless given a logger: anything with `debug`, `info`, `warn` and `error` methods that take
 `(message, fields)`.
 
 ```ts
@@ -18,8 +21,8 @@ new Trading212({ ...options, logger: fieldsFirst(pino()) }); // pino and bunyan 
 | `debug` | Every request and response: endpoint, status, duration, remaining budget; short waits                         |
 | `warn`  | Retries, rate-limit waits of 5 s or more, deprecated endpoints, a non-Trading 212 host, a failing cache store |
 
-The library never logs at `error`: it throws, and you decide what to log. Bodies are never logged. A logger that
-throws cannot break a request.
+The library never logs at `error`: it throws, and you decide what to log. Response bodies are never logged, and a
+logger that throws cannot break a request.
 
 ## Logging errors
 
@@ -55,11 +58,13 @@ Hook events contain no credentials, and an exception in a hook is ignored.
 
 ## What is redacted
 
-Before anything is logged, attached to an error or recorded by the testing kit:
+Before anything is logged, attached to an error or recorded by the testing kit, the client removes:
 
 - your API key, secret and their Base64 form, wherever they appear in a string;
-- any `Basic …` credential;
+- any other `Basic …` credential;
 - values under keys such as `authorization`, `secret`, `password`, `apiKey`, `token` and `cookie`;
 - the query string of signed download links.
 
-The test suite checks this by having a server echo the credentials back in every way it can.
+Successful responses keep their text as Trading 212 sent it, apart from your own key and secret, so a fund named
+"Basic Materials" is not mistaken for a credential. The test suite checks all of this with a server that echoes the
+credentials back in every way it can.

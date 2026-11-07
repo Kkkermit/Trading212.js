@@ -1,0 +1,49 @@
+---
+title: CSV reports
+description: Exporting your history as CSV in one call, step by step, and parsing it.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## In one call
+
+```ts
+const { report, csv } = await t212.reports.export({ from: "2026-01-01", to: "2026-12-31" });
+```
+
+`export()` requests the report, waits for it and downloads it. Listing reports is limited to once a minute, so it
+takes at least a minute. Its `timeoutMs` (default 10 minutes) bounds the wait; the request and the download keep
+their own timeouts.
+
+## Step by step
+
+```ts
+const id = await t212.reports.request({ from, to, include: { interest: false } });
+const ready = await t212.reports.waitFor(id, { onStatus: (report) => console.log(report.status) });
+const text = await t212.reports.download(ready);
+```
+
+`include` takes `dividends`, `interest`, `orders` and `transactions`, all included unless you say otherwise.
+`reports.list()` shows every report you have asked for. The download goes to a signed link **without** your
+credentials, and a link expires, so fetch a fresh one with `reports.list()` if a download is refused.
+
+<Aside type="caution" title="Demo">
+	The spec does not say whether demo offers CSV exports. This library expects demo to refuse them, and turns that
+	refusal into `NotAvailableInDemoError`. This has not yet been confirmed; `npm run test:demo` in the repository checks
+	it against the real API.
+</Aside>
+
+## Parsing the CSV
+
+The parser is in its own entry point, so the client stays small:
+
+```ts
+import { csvNumber, parseCsv } from "@kkermit/trading212.js/csv";
+
+for (const row of parseCsv(text)) console.log(row.Action, row.Ticker, csvNumber(row.Total));
+```
+
+`parseCsv()` returns one object per line, keyed by column name, with every value a string. It handles quoted
+fields, doubled quotes, commas and line breaks inside quotes, either line ending, and a leading byte-order mark.
+`csvNumber()` reads `1234.56`, `1,234.56` or `-0.5`, and returns `undefined` for anything else, including a decimal
+comma.

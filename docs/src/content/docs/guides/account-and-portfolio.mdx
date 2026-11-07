@@ -1,0 +1,45 @@
+---
+title: Account and portfolio
+description: The account summary, positions and the portfolio snapshot, and which currency each amount is in.
+---
+
+## Currencies
+
+Totals, values and dividends are in the account's **primary currency**. Prices per share (`averagePricePaid`,
+`currentPrice`) are in the instrument's currency, and a transaction's `amount` is in its own `currency`. Prices of UK
+instruments quoted in GBX are in pence.
+
+Every field in a response is typed as optional, because the API may leave any of them out.
+
+## Account summary
+
+```ts
+const summary = await t212.account.summary(); // cash, investments, totalValue, currency, id
+```
+
+Needs the `account` permission. `t212.verify()` makes the same request and returns
+`{ environment, accountId, currency, trading }`, which is a quick way to check a key works.
+
+## Positions
+
+```ts
+const all = await t212.positions.list();
+const apple = await t212.positions.get("AAPL_US_EQ"); // undefined if you hold none
+apple?.quantityAvailableForTrading; // excludes shares in pies and reserved by pending orders
+```
+
+Needs the `portfolio` permission. `get()` matches the ticker itself rather than trusting the filter, so it never
+returns a different holding.
+
+## Portfolio snapshot
+
+```ts
+const snapshot = await t212.portfolio.snapshot();
+// { currency, totalValue, cash, invested, unrealisedProfitLoss, realisedProfitLoss,
+//   holdings: [{ ticker, name, quantity, value, cost, profitLoss, profitLossRatio, weight }], takenAt }
+```
+
+`snapshot()` makes two requests, the summary and the positions, and sorts holdings largest first. `weight` is each
+holding's share of the invested total, and `profitLossRatio` its profit or loss as a fraction of its cost.
+
+`buildPortfolioSnapshot(summary, positions)` does the same calculation on data you already have, with no request.

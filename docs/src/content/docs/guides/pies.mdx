@@ -1,0 +1,27 @@
+---
+title: Pies
+description: The deprecated pie endpoints, which still work.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+<Aside type="caution" title="Deprecated">
+	Trading 212 has deprecated the pie endpoints. They still work, but will not be updated and may be removed.
+</Aside>
+
+```ts
+const [first] = await t212.pies.list();
+if (typeof first?.id === "number") console.log(await t212.pies.get(first.id));
+```
+
+| Method                 | Does                                    | Permission   | Limit    |
+| ---------------------- | --------------------------------------- | ------------ | -------- |
+| `pies.list()`          | Every pie, with its progress            | `pies:read`  | 1 / 30 s |
+| `pies.get(id)`         | One pie with its instruments            | `pies:read`  | 1 / 5 s  |
+| `pies.create(pie)`     | Makes a pie                             | `pies:write` | 1 / 5 s  |
+| `pies.update(id, pie)` | Changes a pie's settings or instruments | `pies:write` | 1 / 5 s  |
+| `pies.duplicate(id)`   | Copies a pie, optionally renamed        | `pies:write` | 1 / 5 s  |
+| `pies.delete(id)`      | Deletes a pie                           | `pies:write` | 1 / 5 s  |
+
+The first call to each logs a warning. Changing a pie counts as trading, so a live client needs `trading: "enabled"`,
+and a change is never retried.

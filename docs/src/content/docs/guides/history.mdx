@@ -1,0 +1,46 @@
+---
+title: History and pagination
+description: Past orders, dividends and transactions, one page at a time or every item with for await.
+---
+
+## One page at a time
+
+```ts
+const page = await t212.history.orders.list({ ticker: "AAPL_US_EQ", limit: 50 });
+page.items; // [{ order, fill }], newest first
+const next = await page.next(); // or null on the last page
+```
+
+`limit` is 1 to 50; Trading 212's default is 20. `page.nextCursor` is a plain string, so you can store it and carry
+on later:
+
+```ts
+if (page.nextCursor) {
+	const later = await t212.history.orders.list({ cursor: page.nextCursor });
+}
+```
+
+## Every item
+
+```ts
+for await (const { order, fill } of t212.history.orders.all()) {
+	console.log(order?.ticker, fill?.price);
+}
+const dividends = await Array.fromAsync(t212.history.dividends.all({ maxItems: 500 }));
+```
+
+`all()` fetches pages as the loop asks for them. It takes `pageSize` (default 50, the fewest requests), `maxPages`
+and `maxItems`, and stops without fetching another page once a limit is reached. If a request fails part-way, the
+error carries `resumeCursor`, which you can pass as `cursor` to pick up where it stopped.
+
+## The three histories
+
+| List                   | Holds                                               | Filters           | Permission             |
+| ---------------------- | --------------------------------------------------- | ----------------- | ---------------------- |
+| `history.orders`       | Filled and cancelled orders, with their fills       | `ticker`          | `history:orders`       |
+| `history.dividends`    | Dividends paid out                                  | `ticker`          | `history:dividends`    |
+| `history.transactions` | Deposits, withdrawals, fees, transfers and interest | `time`, from then | `history:transactions` |
+
+Each allows 20 requests a minute, so a long history takes a while; the client paces itself rather than hitting the
+limit. `nextPagePath` from Trading 212 is followed only if it points back at the same endpoint on the same host,
+because the next request carries your credentials.

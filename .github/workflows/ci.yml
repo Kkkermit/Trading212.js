@@ -80,6 +80,30 @@ jobs:
           deno-version: v2.x
       - run: deno run --allow-read --allow-env scripts/smoke.mjs
 
+  docs:
+    name: Docs site
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+      - name: No known vulnerabilities
+        run: npm audit --audit-level=low
+      - name: Types in the site are sound
+        run: npm run check
+      # The build fails on any broken link between pages.
+      - name: Builds, with every internal link valid
+        run: npm run build
+
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'

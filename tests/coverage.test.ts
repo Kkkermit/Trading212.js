@@ -15,6 +15,10 @@ const resources = readdirSync(join(root, "src/resources"))
 	.map((file) => readFileSync(join(root, "src/resources", file), "utf8"))
 	.join("\n");
 const fakeServer = readFileSync(join(root, "src/testing/fakeServer.ts"), "utf8");
+const coverageTables = {
+	"README.md": readFileSync(join(root, "README.md"), "utf8"),
+	"docs API coverage": readFileSync(join(root, "docs/src/content/docs/reference/api-coverage.mdx"), "utf8"),
+};
 
 describe("API coverage", () => {
 	/** A path or method added to the spec must be generated, named and implemented, not silently skipped. */
@@ -34,5 +38,15 @@ describe("API coverage", () => {
 	it("answers every endpoint from the fake server", () => {
 		const unrouted = Object.keys(ENDPOINTS).filter((id) => !fakeServer.includes(`case "${id}":`));
 		expect(unrouted).toEqual([]);
+	});
+
+	it("lists every endpoint in the README and docs coverage tables", () => {
+		const missing = Object.entries(coverageTables).flatMap(([where, text]) =>
+			Object.values(ENDPOINTS)
+				.map((endpoint) => `\`${endpoint.method} ${endpoint.path.replace("/api/v0", "")}\``)
+				.filter((row) => !text.includes(row))
+				.map((row) => `${where}: ${row}`),
+		);
+		expect(missing).toEqual([]);
 	});
 });

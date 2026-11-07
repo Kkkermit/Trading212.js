@@ -1,0 +1,61 @@
+---
+title: Instruments and market hours
+description: Finding Trading 212 tickers, caching the instrument list, and checking whether a market is open.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## Tickers
+
+Tickers are Trading 212's own: `AAPL_US_EQ`, `VODl_EQ` (a lowercase `l` means London), `SXR8d_EQ` (`d` means
+Germany). Do not build them by hand; look them up.
+
+```ts
+const results = await t212.instruments.search("vanguard s&p", { type: "ETF", limit: 5 });
+const apple = await t212.instruments.resolve("AAPL", { currency: "USD" }); // exactly one, or InstrumentNotFoundError
+const exact = await t212.instruments.find("AAPL_US_EQ"); // or undefined
+```
+
+`search()` ranks by ticker, ISIN, short name and name, best match first. `resolve()` turns what a person would type
+into exactly one instrument: an exact ticker, ISIN, short name or full name, or a ticker without its suffix, such as
+`AAPL` for `AAPL_US_EQ`. If nothing fits, or several fit equally well, it throws `InstrumentNotFoundError` with
+`suggestions` and a hint on narrowing it with `currency` or `type`.
+
+Every instrument these methods return has a `ticker`; entries without one cannot be traded and are left out. They
+need the `metadata` permission.
+
+## The cached list
+
+The full list is about 5 MB and limited to one request every 50 seconds, so it is cached (one hour by default,
+`metadataTtlMs`) and callers at the same moment share one download. Trading 212 refreshes it every 10 minutes. Pass
+`{ refresh: true }` to fetch it afresh.
+
+To share the cache between processes, pass a `cache` with `get`, `set` and optionally `delete`. Each may return a
+promise, and `get` returning `undefined` or `null` counts as a miss:
+
+```ts
+const redisCache = {
+	get: async (key: string) => JSON.parse((await redis.get(key)) ?? "null"),
+	set: (key: string, value: unknown, ttlMs: number) => redis.set(key, JSON.stringify(value), "PX", ttlMs),
+};
+new Trading212({ ...options, cache: redisCache });
+```
+
+A cache that fails is logged at `warn` and bypassed, so a broken Redis costs a download rather than the call.
+
+## Market hours
+
+```ts
+const status = await t212.exchanges.status("AAPL_US_EQ");
+// { session: "regular" | "preMarket" | "afterHours" | "overnight" | "closed" | "unknown",
+//   open, extendedHours, since, next: { event, at }, nextOpen, exchange }
+```
+
+This reads Trading 212's working schedules, which cover a limited window ahead, so `nextOpen` can be undefined.
+During a midday break, `nextOpen` is the end of the break. The exchange list is cached like the instrument list.
+
+`sessionAt(timeEvents, date)` is the same calculation as a pure function, for schedules you already have.
+
+<Aside>
+	Treat market hours as guidance. Trading 212 makes the final decision, and refuses an order with `MarketClosed`.
+</Aside>

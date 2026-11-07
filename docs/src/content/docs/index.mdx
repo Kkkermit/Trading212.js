@@ -1,0 +1,88 @@
+---
+title: trading212.js
+description: An unofficial TypeScript client for the Trading 212 Public API, built to be safe around real money.
+template: splash
+hero:
+  tagline: A TypeScript client for the Trading 212 Public API that is safe around real money, tells you how to fix what went wrong, and comes with a fake Trading 212 to test your code against.
+  actions:
+    - text: Get started
+      link: /Trading212.js/getting-started/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/Kkkermit/Trading212.js
+      icon: external
+      variant: minimal
+---
+
+import { Aside, Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+```ts
+import { Trading212 } from "@kkermit/trading212.js";
+
+const t212 = new Trading212({ environment: "demo", apiKey, apiSecret });
+
+const { totalValue, holdings } = await t212.portfolio.snapshot();
+const apple = await t212.instruments.resolve("Apple");
+const order = await t212.orders.buy({ ticker: apple.ticker, quantity: 0.5 });
+await t212.orders.waitFor(order); // FILLED
+```
+
+<Aside type="caution" title="Unofficial">
+	Not affiliated with or endorsed by Trading 212. The API is in beta and can change. Live trading uses real money: test
+	on demo first, and read [Safety and security](/Trading212.js/guides/safety/).
+</Aside>
+
+## Why this one
+
+<CardGrid>
+	<Card title="A live client cannot trade by accident" icon="warning">
+		It only reads until you pass `trading: "enabled"`. Orders are never retried, and a request that may or may not have
+		run throws `OrderOutcomeUnknownError` instead of a plain failure.
+	</Card>
+	<Card title="Errors tell you what to do" icon="information">
+		Every error is a named class with a `hint` in plain English. A 403 names the permission your key lacks.
+	</Card>
+	<Card title="Your key stays secret" icon="seti:lock">
+		Credentials are removed from every log line, error and test recording. Redirects are refused and pagination links
+		are pinned to Trading 212.
+	</Card>
+	<Card title="Rate limits are handled" icon="setting">
+		Every endpoint has its own budget, generated from the official spec and corrected from the response headers.
+	</Card>
+	<Card title="Common tasks take one call" icon="rocket">
+		Turn "Apple" into `AAPL_US_EQ`, sell a whole position, wait for a fill, export a year of history, or check whether a
+		market is open.
+	</Card>
+	<Card title="Test without the network" icon="laptop">
+		`createFakeTrading212()` gives you the real client talking to an in-memory Trading 212 that fills orders and fails
+		on demand.
+	</Card>
+</CardGrid>
+
+Zero runtime dependencies, about 15 kB minified and compressed, ESM and CommonJS, full types. Works on Node 22 or
+later, Bun and Deno.
+
+## Where to go next
+
+<CardGrid>
+	<LinkCard
+		title="Getting started"
+		description="From install to a working script, starting with a try-out that needs no key."
+		href="/Trading212.js/getting-started/"
+	/>
+	<LinkCard
+		title="API coverage"
+		description="Every Trading 212 endpoint, the method that calls it, and its permission and limit."
+		href="/Trading212.js/reference/api-coverage/"
+	/>
+	<LinkCard
+		title="Orders"
+		description="Order types, quantities, selling a whole position, dry runs and waiting for a fill."
+		href="/Trading212.js/guides/orders/"
+	/>
+	<LinkCard
+		title="Testing your code"
+		description="The fake Trading 212 and scripted fetch, for tests with no network and no key."
+		href="/Trading212.js/guides/testing/"
+	/>
+</CardGrid>

@@ -1,8 +1,14 @@
-# Orders
+---
+title: Orders
+description: Order types, quantities, selling a whole position, dry runs, waiting for a fill and cancelling.
+---
+
+import { Aside } from "@astrojs/starlight/components";
 
 ## Buying and selling
 
-`buy()` and `sell()` take a **positive** quantity and set the direction themselves. The type defaults to `market`.
+`buy()` and `sell()` take a **positive** quantity and set the direction themselves, so a stray minus sign cannot turn
+a sale into a purchase. The type defaults to `market`.
 
 ```ts
 await t212.orders.buy({ ticker: "AAPL_US_EQ", quantity: 0.5 });
@@ -25,7 +31,7 @@ await t212.orders.sell({
 });
 ```
 
-The low-level `market()`, `limit()`, `stop()` and `stopLimit()` send exactly what you give them, with the API's
+The lower-level `market()`, `limit()`, `stop()` and `stopLimit()` send exactly what you give them, with the API's own
 convention that **a negative quantity sells**.
 
 | Type        | Fills                                                    | Needs                                     | Limit       |
@@ -35,29 +41,37 @@ convention that **a negative quantity sells**.
 | `stop`      | as a market order once the price reaches `stopPrice`     | `stopPrice`, `timeValidity`               | 1 / 2 s     |
 | `stopLimit` | as a limit order at `limitPrice` once `stopPrice` is hit | `stopPrice`, `limitPrice`, `timeValidity` | 1 / 2 s     |
 
-`timeValidity` is `"DAY"` (expires at midnight in the exchange's time zone) or `"GOOD_TILL_CANCEL"`. It is always required on
-non-market orders, because the sources disagree on Trading 212's default. `extendedHours` is allowed on market orders
-only.
+`timeValidity` is `"DAY"`, which expires at midnight in the exchange's time zone, or `"GOOD_TILL_CANCEL"`. It is
+always required on non-market orders, so the order never depends on a default. `extendedHours` is allowed on market
+orders only.
+
+Every order needs a key with the `orders:execute` permission.
 
 ## What is checked before sending
 
-Before any request, the client checks the ticker has no spaces, the quantity is finite, non-zero and at most **4
-decimal places**, prices are positive, `timeValidity` is one of the two values, and no field is given that the type
-does not use. Every problem goes into one `ValidationError`, with `error.issues` listing them.
+Before any request, the client checks that:
+
+- the ticker has no spaces;
+- the quantity is finite, not zero, and has at most **4 decimal places**;
+- prices are positive;
+- `timeValidity` is one of the two values;
+- no field is given that the order type does not use.
+
+Every problem goes into one `ValidationError`, with `error.issues` listing them. Nothing is sent.
 
 ## Quantities
 
 Positions can hold 8 decimal places, but orders take 4. `truncateQuantity()` cuts towards zero using the number's
-exact digits, never floating-point maths, so it can never round up past what you own:
+exact digits, never floating-point arithmetic, so it can never round up past what you own:
 
 ```ts
-import { truncateQuantity, isValidQuantity } from "@kkermit/trading212.js";
+import { isValidQuantity, truncateQuantity } from "@kkermit/trading212.js";
 
 truncateQuantity(12.09032128); // 12.0903
 isValidQuantity(0.12345); // false
 ```
 
-Placing orders by value (for example "£50 of Apple") is not supported by the API.
+The API does not support placing orders by value, such as "£50 of Apple".
 
 ## Selling a whole position
 
@@ -65,8 +79,9 @@ Placing orders by value (for example "£50 of Apple") is not supported by the AP
 await t212.orders.sellAll("AAPL_US_EQ");
 ```
 
-It reads `quantityAvailableForTrading`, truncates it to 4 decimal places and sells that at market. Shares in pies or
-reserved by pending orders are left alone. If nothing can be sold, the error says why.
+It reads the position's `quantityAvailableForTrading`, truncates it to 4 decimal places and sells that at market.
+Shares in pies or reserved by pending orders are left alone. If nothing can be sold, the error says why. The key
+needs `portfolio` as well as `orders:execute`.
 
 ## Previewing with `dryRun`
 
@@ -75,8 +90,9 @@ const preview = await t212.orders.buy({ ticker: "AAPL_US_EQ", quantity: 1 }, { d
 // { dryRun: true, method: "POST", url, endpoint: "placeMarketOrder", body: { ticker, quantity }, wouldSend }
 ```
 
-A dry run validates and builds the exact request, then returns it. It never sends anything, and works on a live
-client with trading switched off; `wouldSend` says whether this client would send it for real.
+A dry run validates and builds the exact request, then returns it instead of sending it. It works on a live client
+with trading off; `wouldSend` says whether this client would send it for real. TypeScript knows the difference:
+`{ dryRun: true }` returns a `DryRunResult`, and anything else an `Order`.
 
 ## Waiting for a fill
 
@@ -86,16 +102,16 @@ const settled = await t212.orders.waitFor(order, { timeoutMs: 60_000 });
 settled.status; // FILLED, CANCELLED, REJECTED or REPLACED
 ```
 
-`waitFor` polls the pending order once a second (its rate limit). Once the order stops being pending, Trading 212
+`waitFor` polls the pending order once a second, its rate limit. Once the order stops being pending, Trading 212
 answers 404, so from then on it looks the order up in the history instead, which needs the `history:orders`
-permission. `timeoutMs` bounds the whole wait, including waits for rate-limit budget; after it, `waitFor` throws
+permission. `timeoutMs` bounds the whole wait, including waits for rate-limit budget. After it, `waitFor` throws
 `TimeoutError`, and the order may still fill.
 
 ## Pending orders and cancelling
 
 ```ts
 const [first] = await t212.orders.list();
-if (first?.id !== undefined) {
+if (typeof first?.id === "number") {
 	const one = await t212.orders.get(first.id);
 	await t212.orders.cancel(first.id);
 	console.log(one.status);
@@ -103,7 +119,7 @@ if (first?.id !== undefined) {
 ```
 
 A successful cancel means Trading 212 accepted the request; the order can still fill first. Cancelling an order that
-has already gone throws `NotFoundError`.
+has already gone throws `NotFoundError`. At most 50 orders may be pending per ticker.
 
 ## When an order fails
 
@@ -111,11 +127,16 @@ has already gone throws `NotFoundError`.
 | ------------------------------ | ------------------------------------------------------------------------------------- |
 | `ValidationError`              | Refused before sending; fix `error.issues`                                            |
 | `OrderRejectedError`           | Refused by Trading 212; `error.reason` is the code, such as `SellingEquityNotOwned`   |
-| `TradingDisabledError`         | Live client without `trading: "enabled"`; nothing sent                                |
+| `TradingDisabledError`         | Trading is off for this client, as it is on live by default; nothing was sent         |
 | `OrderOutcomeUnknownError`     | May have executed. Check `orders.list()` and `history.orders.list()` before resending |
 | `NetworkError` (`sent: false`) | Never left your machine; safe to try again                                            |
 | `MissingScopeError`            | The key lacks `orders:execute`                                                        |
 
-Known rejection reasons: `InsufficientFreeForStocksBuy`, `SellingEquityNotOwned`, `MarketClosed` and
-`QuantityPrecisionMismatch`. Any other code Trading 212 sends is kept as-is in `reason`. At most 50 orders may be
-pending per ticker.
+<Aside type="caution" title="Never resend blindly">
+	An order is never retried automatically. When the outcome is unknown, look before you send it again: the first one may
+	have filled.
+</Aside>
+
+The rejection reasons the client recognises are `InsufficientFreeForStocksBuy`, `SellingEquityNotOwned`,
+`MarketClosed` and `QuantityPrecisionMismatch`, each with its own hint. Any other code Trading 212 sends is kept as
+it is in `reason`. These codes are not in the spec and have not yet been confirmed against the API.

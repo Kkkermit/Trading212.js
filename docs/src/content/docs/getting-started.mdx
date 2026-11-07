@@ -1,0 +1,217 @@
+---
+title: Getting started
+description: From nothing to a working script in six steps, starting with a try-out that needs no Trading 212 account.
+---
+
+import { Aside, Steps, TabItem, Tabs } from "@astrojs/starlight/components";
+
+The first two steps need no Trading 212 account at all.
+
+<Steps>
+
+1.  **Install the package.**
+
+        <Tabs syncKey="package-manager">
+
+    <TabItem label="npm">
+
+        ```sh
+        npm install @kkermit/trading212.js
+        ```
+
+        </TabItem>
+
+    <TabItem label="pnpm">
+
+        ```sh
+        pnpm add @kkermit/trading212.js
+        ```
+
+        </TabItem>
+
+    <TabItem label="Yarn">
+
+        ```sh
+        yarn add @kkermit/trading212.js
+        ```
+
+        </TabItem>
+
+    <TabItem label="Bun">
+
+        ```sh
+        bun add @kkermit/trading212.js
+        ```
+
+        </TabItem>
+
+    </Tabs>
+
+        You need Node 22 or later, Bun, or Deno, which imports it as `npm:@kkermit/trading212.js`. The library runs on
+        servers only: Trading 212 refuses requests from web pages, and a key shipped to a browser is public, so the client
+        refuses to start in one.
+
+2.  **Try it without a key.**
+
+    The fake Trading 212 in `@kkermit/trading212.js/testing` is the real client talking to an in-memory account, so
+    you can see how everything behaves first. Save this as `try.mjs` and run `node try.mjs`:
+
+    ```js
+    import { createFakeTrading212 } from "@kkermit/trading212.js/testing";
+
+    const { client } = createFakeTrading212({ state: { cash: 1000 } });
+
+    const apple = await client.instruments.resolve("Apple");
+    const order = await client.orders.buy({ ticker: apple.ticker, quantity: 2 });
+    console.log(await client.orders.waitFor(order)); // status: "FILLED"
+    console.log(await client.portfolio.snapshot());
+    ```
+
+    The same thing, with a refusal and its hint, is in
+    [`examples/try-it-offline.ts`](https://github.com/Kkkermit/Trading212.js/blob/main/examples/try-it-offline.ts).
+
+3.  **Make a key.**
+
+    In the Trading 212 app, open **Settings > API (Beta)** and generate a key.
+
+    - Choose the environment first. A key made in practice mode works on **demo** only; one made with real money
+      works on **live** only. There are only these two: "production" is live, and "paper" or "sandbox" is demo.
+    - Tick only the permissions the program needs. The
+      [API coverage](/Trading212.js/reference/api-coverage/) page lists which method needs which.
+    - The secret is shown once. Copy it straight into the next step.
+    - Optionally restrict the key to fixed IP addresses.
+
+4.  **Store it.**
+
+    Make a `.env` file next to your code, and make sure git ignores it:
+
+    ```sh title=".env"
+    T212_ENV=demo
+    T212_API_KEY=your-key
+    T212_API_SECRET=your-secret
+    ```
+
+    ```sh
+    echo .env >> .gitignore
+    ```
+
+    If you keep a key per environment, set `T212_DEMO_API_KEY` / `T212_DEMO_API_SECRET` and `T212_LIVE_API_KEY` /
+    `T212_LIVE_API_SECRET` instead, and switch with `T212_ENV`. The library never reads `.env` itself; your runtime
+    loads it, as in step 6.
+
+5.  **Check it.**
+
+    ```sh
+    npx @kkermit/trading212.js doctor --env-file .env
+    ```
+
+    The [doctor](/Trading212.js/reference/cli/) signs in, then tries one read for each permission and reports which
+    are missing. It never prints your key or secret, and never places an order.
+
+6.  **Write your first script.**
+
+        ```js title="app.mjs"
+        import { Trading212 } from "@kkermit/trading212.js";
+
+        const t212 = Trading212.fromEnv();
+        console.log(await t212.verify()); // { environment, accountId, currency, trading }
+        console.log(await t212.portfolio.snapshot());
+        ```
+
+        <Tabs syncKey="runtime">
+
+    <TabItem label="Node (ESM)">
+
+        ```sh
+        node --env-file=.env app.mjs
+        ```
+
+        </TabItem>
+
+    <TabItem label="Node (CommonJS)">
+
+        ```js title="app.cjs"
+        const { Trading212 } = require("@kkermit/trading212.js");
+
+        async function main() {
+        	const t212 = Trading212.fromEnv();
+        	console.log(await t212.verify());
+        }
+
+        main();
+        ```
+
+        ```sh
+        node --env-file=.env app.cjs
+        ```
+
+        </TabItem>
+
+    <TabItem label="TypeScript">
+
+        Types are included. Run with [tsx](https://tsx.is), or compile with `tsc`:
+
+        ```sh
+        npx tsx --env-file=.env app.ts
+        ```
+
+        </TabItem>
+
+    <TabItem label="Bun">
+
+        Bun loads `.env` by itself:
+
+        ```sh
+        bun app.ts
+        ```
+
+        </TabItem>
+
+    <TabItem label="Deno">
+
+        Import from `npm:@kkermit/trading212.js`, then:
+
+        ```sh
+        deno run --allow-net --allow-env --env-file=.env app.ts
+        ```
+
+        </TabItem>
+
+    </Tabs>
+
+</Steps>
+
+You can also pass the options yourself instead of using `fromEnv()`:
+
+```ts
+const t212 = new Trading212({
+	environment: "demo",
+	apiKey: process.env.T212_API_KEY ?? "",
+	apiSecret: process.env.T212_API_SECRET ?? "",
+});
+```
+
+<Aside title="There is no default environment">
+	Trading 212's own guide defaults to live and other libraries default to demo. When guesses disagree, guessing is the
+	bug, so the client asks you to say which.
+</Aside>
+
+## Going live
+
+Make a second key in real-money mode, set `T212_ENV=live`, and run the doctor again. A live client cannot trade:
+orders, cancellations and pie changes throw `TradingDisabledError` until you opt in.
+
+```ts
+const t212 = Trading212.fromEnv({ trading: "enabled" });
+```
+
+<Aside type="danger">
+	Read [Safety and security](/Trading212.js/guides/safety/) first. Never put a live key in a file your tests or examples
+	read.
+</Aside>
+
+## Where next
+
+- [Orders](/Trading212.js/guides/orders/) to place your first demo trade.
+- [Configuration](/Trading212.js/reference/configuration/) for every option.
+- [Errors](/Trading212.js/guides/errors/) for what each error means.
