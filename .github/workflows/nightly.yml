@@ -42,7 +42,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm audit signatures
+      # npm 10 fails any package whose attestations are all keyless (Sigstore); npm 11 verifies them properly.
+      - name: Registry signatures are valid
+        run: npx --yes npm@11 audit signatures
       - run: npm audit --audit-level=low
 
   contract:

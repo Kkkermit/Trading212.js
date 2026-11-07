@@ -104,6 +104,8 @@ docs/                     the guides
 - `overrides.minimatch` in `package.json` forces the patched release (GHSA-g3hv-75wg-m249) under ESLint and
   typescript-eslint. Remove it once they depend on `minimatch@11.0.1` or later. TypeDoc was dropped because no
   release works with the patched version.
+- `npm audit signatures` runs on npm 11 in CI: npm 10 fails any package whose attestations are all keyless
+  (Sigstore) with `EMISSINGSIGNATUREKEY`, which npm 11 fixed.
 - Every GitHub Action is pinned to a full commit with its version in a comment. Dependabot keeps both current.
 - Workflows get `contents: read` unless a job needs more, and only that job is granted it.
 - CI runs on every push and pull request; the nightly run repeats the test matrix on the newest Node, re-audits,
