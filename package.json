@@ -100,7 +100,8 @@
 		"changeset": "changeset",
 		"release": "npm run check && changeset publish",
 		"prepare": "husky",
-		"smoke": "node scripts/smoke.mjs && node scripts/smoke.cjs"
+		"smoke": "node scripts/smoke.mjs && node scripts/smoke.cjs",
+		"example": "tsx --tsconfig examples/tsconfig.json"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.18.5",

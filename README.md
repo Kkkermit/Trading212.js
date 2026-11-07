@@ -63,6 +63,9 @@ npm install @kkermit/trading212.js
 Node 22 or later, Bun or Deno. Server-side only: Trading 212 refuses requests from web pages, and a key in a page is
 public, so the client refuses to start in a browser.
 
+New to it? [Getting started](docs/getting-started.md) goes from install to a working script step by step, starting
+with a try-out that needs no key. The [examples](examples) are complete programs.
+
 ## Get a key
 
 In the Trading 212 app, go to **Settings > API (Beta)** and create a key. You will see the secret **once**, so save

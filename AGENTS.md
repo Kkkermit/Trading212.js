@@ -20,6 +20,7 @@ real money, so **safety beats convenience in every trade-off**.
 | `npm run spec:fetch`       | Download the official spec into `openapi/`                                                            |
 | `npm run test:demo`        | Contract tests against the **demo** API; needs `T212_DEMO_API_KEY` / `_SECRET`                        |
 | `npm run fixtures:capture` | Record real demo error bodies into `fixtures/errors.json`                                             |
+| `npm run example <file>`   | Run an example against the source, such as `examples/try-it-offline.ts`                               |
 | `npm run smoke`            | Run the built package in Node, as ESM and CommonJS; CI also runs it in Bun and Deno                   |
 | `npm run secrets`          | Scan the repository for committed secrets                                                             |
 | `npm run changeset`        | Describe a user-facing change for the changelog                                                       |
