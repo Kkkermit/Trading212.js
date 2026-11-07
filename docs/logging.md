@@ -1,0 +1,69 @@
+---
+title: Logging and hooks
+---
+
+# Logging and hooks
+
+## Loggers
+
+The client says nothing unless given a logger: anything with `debug`, `info`, `warn` and `error` methods taking
+`(message, fields)`.
+
+```ts
+import { consoleLogger, fieldsFirst } from "@kkermit/trading212.js";
+
+new Trading212({ ...options, logger: console }); // everything, including debug
+new Trading212({ ...options, logger: consoleLogger({ level: "info" }) }); // "[trading212] …" from info up
+new Trading212({ ...options, logger: fieldsFirst(pino()) }); // pino and bunyan take (fields, message)
+```
+
+| Level   | What                                                                                   |
+| ------- | -------------------------------------------------------------------------------------- |
+| `debug` | Every request and response: endpoint, status, duration, remaining budget; short waits  |
+| `warn`  | Retries, rate-limit waits of 5 s or more, deprecated endpoints, a non-Trading 212 host |
+
+The library never logs at `error`: it throws, and you decide what to log. Bodies are never logged. A logger that
+throws cannot break a request.
+
+## Logging errors
+
+```ts
+try {
+	await t212.orders.buy(order);
+} catch (error) {
+	if (isTrading212Error(error)) logger.error(error.message, error.toLog());
+	throw error;
+}
+```
+
+`toLog()` returns `name`, `message`, `code`, `hint`, `status`, `request`, `rateLimit`, `body`, `apiCode` and the
+cause's message: everything needed to debug, nothing secret. `console.error(error)` is safe too.
+
+## Hooks
+
+For metrics and tracing:
+
+```ts
+new Trading212({
+	...options,
+	hooks: {
+		onRequest: ({ endpoint, method, path, attempt }) => {},
+		onResponse: ({ endpoint, status, durationMs, rateLimit }) => {},
+		onRetry: ({ endpoint, attempt, delayMs, error }) => {},
+		onRateLimitWait: ({ endpoint, waitMs }) => {},
+	},
+});
+```
+
+Hook events contain no credentials, and an exception in a hook is ignored.
+
+## What is redacted
+
+Before anything is logged, attached to an error or recorded by the testing kit:
+
+- your API key, secret and their Base64 form, wherever they appear in a string;
+- any `Basic …` credential;
+- values under keys such as `authorization`, `secret`, `password`, `apiKey`, `token` and `cookie`;
+- the query string of signed download links.
+
+The test suite checks this by having a server echo the credentials back in every way it can.
