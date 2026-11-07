@@ -9,7 +9,7 @@ export interface CacheStore {
 	delete?(key: string): unknown;
 }
 
-export interface LoadOptions<T> {
+interface LoadOptions<T> {
 	readonly ttlMs: number;
 	/** Skip the cache and load afresh. */
 	readonly refresh?: boolean;

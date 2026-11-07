@@ -15,9 +15,10 @@ describe("loggers", () => {
 		expect(target.info).not.toHaveBeenCalled();
 		expect(target.warn).toHaveBeenCalledWith("[trading212] shown", { a: 1 });
 		expect(target.error).toHaveBeenCalledWith("[trading212] bare");
-		expect(() => {
-			consoleLogger().info("default console");
-		}).not.toThrow();
+		const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+		consoleLogger().info("default console");
+		expect(info).toHaveBeenCalledWith("[trading212] default console");
+		info.mockRestore();
 	});
 
 	it("fieldsFirst swaps the arguments for pino-style loggers", () => {

@@ -85,6 +85,9 @@ describe("CachedLoader", () => {
 	});
 });
 
+// Lets both loads get past the cache lookup, so the abort lands while they are waiting on the shared download.
+const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
+
 describe("CachedLoader and abort signals", () => {
 	it("lets each caller stop waiting without failing the others", async () => {
 		const loader = new CachedLoader(new MemoryCache());
@@ -97,6 +100,7 @@ describe("CachedLoader and abort signals", () => {
 		const controller = new AbortController();
 		const first = loader.load("k", { ttlMs: 1000, signal: controller.signal }, load);
 		const second = loader.load("k", { ttlMs: 1000 }, load);
+		await tick();
 		controller.abort(new Error("first gave up"));
 		await expect(first).rejects.toThrow("first gave up");
 		await expect(second).resolves.toBe("done");
@@ -107,6 +111,7 @@ describe("CachedLoader and abort signals", () => {
 		const later = new AbortController();
 		const starter = loader.load("j", { ttlMs: 1000 }, load);
 		const joiner = loader.load("j", { ttlMs: 1000, signal: later.signal }, load);
+		await tick();
 		later.abort(new Error("joiner gave up"));
 		await expect(joiner).rejects.toThrow("joiner gave up");
 		await expect(starter).resolves.toBe("done");

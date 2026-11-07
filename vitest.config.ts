@@ -22,7 +22,8 @@ export default defineConfig({
 		coverage: {
 			provider: "v8",
 			include: ["src/**/*.ts"],
-			exclude: ["src/**/*.generated.ts", "src/types/**", "src/cli/bin.ts"],
+			// Re-exports and type-only files have no code to run, so they would only show as 0%.
+			exclude: ["src/**/*.generated.ts", "src/types/**", "src/cli/bin.ts", "src/index.ts", "src/resources/context.ts"],
 			thresholds: { lines: 90, branches: 90, functions: 90, statements: 90 },
 		},
 	},
