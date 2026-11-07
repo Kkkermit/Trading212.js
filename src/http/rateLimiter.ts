@@ -29,7 +29,7 @@ export interface EndpointBudget {
 }
 
 /** How long a call must wait for its slot, and whether the slot was taken. */
-export interface Reservation {
+interface Reservation {
 	readonly waitMs: number;
 	readonly booked: boolean;
 }

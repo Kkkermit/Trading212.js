@@ -5,10 +5,13 @@ import type {
 	HistoryTransactionItem,
 	PieRequest,
 	ReportResponse,
+	TradableInstrument,
 } from "./api.generated";
 
 export type * from "./api.generated";
 
+/** An instrument the account can trade, from `instruments.list()`, `search()`, `find()` and `resolve()`. */
+export type Instrument = TradableInstrument & { ticker: string };
 /** A dividend payment, from `history.dividends`. */
 export type Dividend = HistoryDividendItem;
 /** A deposit, withdrawal, fee or interest payment, from `history.transactions`. */

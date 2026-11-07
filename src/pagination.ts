@@ -35,7 +35,7 @@ interface WirePage<T> {
 
 const MAX_LIMIT = 50;
 
-export function checkLimit(limit: number | undefined, field = "limit"): void {
+function checkLimit(limit: number | undefined, field = "limit"): void {
 	if (limit === undefined) return;
 	if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LIMIT) {
 		throw new ValidationError(`${field} must be a whole number from 1 to ${MAX_LIMIT}.`, {

@@ -15,7 +15,7 @@ const t212 = new Trading212({ environment: "demo", apiKey, apiSecret });
 
 const { totalValue, holdings } = await t212.portfolio.snapshot();
 const apple = await t212.instruments.resolve("Apple");
-const order = await t212.orders.buy({ ticker: apple.ticker!, quantity: 0.5 });
+const order = await t212.orders.buy({ ticker: apple.ticker, quantity: 0.5 });
 await t212.orders.waitFor(order); // FILLED
 ```
 
@@ -108,9 +108,47 @@ for await (const dividend of t212.history.dividends.all()) {
 }
 ```
 
-Every part of the API is covered: `account`, `positions`, `instruments`, `exchanges`, `orders`, `history`
-(orders, dividends and transactions), `reports` (CSV exports) and the deprecated `pies`. See the
-[guides](#guides) for each.
+## What it covers
+
+Every one of the 22 operations in Trading 212's Public API, on both of its environments. A test fails the build if
+the official spec gains an operation this library does not implement.
+
+| Environment | Host                          | What it is                                              |
+| ----------- | ----------------------------- | ------------------------------------------------------- |
+| `demo`      | `https://demo.trading212.com` | Paper trading with practice money. Trading is on.       |
+| `live`      | `https://live.trading212.com` | Your real account ("prod"). Read-only until you opt in. |
+
+There is no third environment: "production" and "real" mean `live`, and "paper", "practice" and "sandbox" mean
+`demo`. The client asks you to name one of the two and never guesses.
+
+| Method                                            | Endpoint                           | Permission             | Limit    |
+| ------------------------------------------------- | ---------------------------------- | ---------------------- | -------- |
+| `account.summary()`                               | `GET /equity/account/summary`      | `account`              | 1 / 5 s  |
+| `positions.list()`, `positions.get()`             | `GET /equity/positions`            | `portfolio`            | 1 / 1 s  |
+| `instruments.list()`, `search()`, `resolve()`     | `GET /equity/metadata/instruments` | `metadata`             | 1 / 50 s |
+| `exchanges.list()`, `exchanges.status()`          | `GET /equity/metadata/exchanges`   | `metadata`             | 1 / 30 s |
+| `orders.list()`                                   | `GET /equity/orders`               | `orders:read`          | 1 / 5 s  |
+| `orders.get()`, `orders.waitFor()`                | `GET /equity/orders/{id}`          | `orders:read`          | 1 / 1 s  |
+| `orders.cancel()`                                 | `DELETE /equity/orders/{id}`       | `orders:execute`       | 50 / min |
+| `orders.market()`, `buy()`, `sell()`, `sellAll()` | `POST /equity/orders/market`       | `orders:execute`       | 50 / min |
+| `orders.limit()`                                  | `POST /equity/orders/limit`        | `orders:execute`       | 1 / 2 s  |
+| `orders.stop()`                                   | `POST /equity/orders/stop`         | `orders:execute`       | 1 / 2 s  |
+| `orders.stopLimit()`                              | `POST /equity/orders/stop_limit`   | `orders:execute`       | 1 / 2 s  |
+| `history.orders.list()`, `.all()`                 | `GET /equity/history/orders`       | `history:orders`       | 20 / min |
+| `history.dividends.list()`, `.all()`              | `GET /equity/history/dividends`    | `history:dividends`    | 20 / min |
+| `history.transactions.list()`, `.all()`           | `GET /equity/history/transactions` | `history:transactions` | 20 / min |
+| `reports.list()`, `reports.waitFor()`             | `GET /equity/history/exports`      | not stated in the spec | 1 / min  |
+| `reports.request()`, `reports.export()`           | `POST /equity/history/exports`     | not stated in the spec | 1 / 30 s |
+| `pies.list()`                                     | `GET /equity/pies`                 | `pies:read`            | 1 / 30 s |
+| `pies.get()`                                      | `GET /equity/pies/{id}`            | `pies:read`            | 1 / 5 s  |
+| `pies.create()`                                   | `POST /equity/pies`                | `pies:write`           | 1 / 5 s  |
+| `pies.update()`                                   | `POST /equity/pies/{id}`           | `pies:write`           | 1 / 5 s  |
+| `pies.duplicate()`                                | `POST /equity/pies/{id}/duplicate` | `pies:write`           | 1 / 5 s  |
+| `pies.delete()`                                   | `DELETE /equity/pies/{id}`         | `pies:write`           | 1 / 5 s  |
+
+Paths are under `/api/v0`. `portfolio.snapshot()` combines the account summary and positions. Trading 212 offers
+CSV exports on live only, and has deprecated the pie endpoints, which still work. The exported `ENDPOINTS` table holds
+the same facts at run time. See the [guides](#guides) for each part.
 
 ## Safety around real money
 

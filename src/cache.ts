@@ -1,6 +1,6 @@
 /**
  * Where the client keeps the instrument and exchange lists. Implement it over a file, Redis or anything else to share
- * them between processes; values are plain JSON.
+ * them between processes; each method may return a promise, and values are plain JSON.
  */
 export interface CacheStore {
 	get(key: string): unknown;

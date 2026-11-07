@@ -44,6 +44,12 @@ describe("resolveOptions", () => {
 	it("insists on an environment, with no default", () => {
 		expect(fieldOf({ ...base, environment: undefined })).toBe("environment");
 		expect(fieldOf({ ...base, environment: "paper" })).toBe("environment");
+		expect(() => resolveOptions({ ...base, environment: "prod" as "live" })).toThrow(
+			expect.objectContaining({ hint: expect.stringContaining('calls that environment "live"') }),
+		);
+		expect(() => resolveOptions({ ...base, environment: "Paper" as "demo" })).toThrow(
+			expect.objectContaining({ hint: expect.stringContaining('calls that environment "demo"') }),
+		);
 		expect(fieldOf(null)).toBe("options");
 	});
 
@@ -134,6 +140,9 @@ describe("optionsFromEnv", () => {
 	it("says exactly what is missing", () => {
 		expect(() => optionsFromEnv({})).toThrow("T212_ENV is not set.");
 		expect(() => optionsFromEnv({ T212_ENV: "paper" })).toThrow('"paper"');
+		expect(() => optionsFromEnv({ T212_ENV: "production" })).toThrow(
+			expect.objectContaining({ hint: 'Trading 212 calls that environment "live": set T212_ENV to live.' }),
+		);
 		expect(() => optionsFromEnv({ T212_ENV: "demo" })).toThrow("T212_API_KEY");
 		expect(() => optionsFromEnv({ T212_ENV: "demo", T212_API_KEY: "k" })).toThrow("T212_API_SECRET");
 	});

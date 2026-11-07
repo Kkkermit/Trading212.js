@@ -1,6 +1,7 @@
 import { InstrumentNotFoundError, ValidationError } from "../errors/errors";
 import { ENDPOINTS } from "../http/endpoints.generated";
 import type { TradableInstrument } from "../types/api.generated";
+import type { Instrument } from "../types/public";
 
 import type { ResourceContext } from "./context";
 
@@ -26,9 +27,9 @@ export interface ResolveOptions extends ListOptions {
 	currency?: string;
 }
 
-function matchScore(instrument: TradableInstrument, query: string): number {
+function matchScore(instrument: Instrument, query: string): number {
 	const q = query.toLowerCase();
-	const ticker = instrument.ticker?.toLowerCase() ?? "";
+	const ticker = instrument.ticker.toLowerCase();
 	const short = instrument.shortName?.toLowerCase() ?? "";
 	const name = instrument.name?.toLowerCase() ?? "";
 	const isin = instrument.isin?.toLowerCase() ?? "";
@@ -44,7 +45,12 @@ function matchScore(instrument: TradableInstrument, query: string): number {
 	return 0;
 }
 
-function passesFilters(instrument: TradableInstrument, options: { type?: string; currency?: string }): boolean {
+// An entry without a ticker cannot be traded or looked up, so it is left out.
+function hasTicker(instrument: TradableInstrument): instrument is Instrument {
+	return typeof instrument.ticker === "string" && instrument.ticker !== "";
+}
+
+function passesFilters(instrument: Instrument, options: { type?: string; currency?: string }): boolean {
 	if (options.type && instrument.type?.toUpperCase() !== options.type.toUpperCase()) return false;
 	if (options.currency && instrument.currencyCode?.toUpperCase() !== options.currency.toUpperCase()) return false;
 	return true;
@@ -63,7 +69,7 @@ export class InstrumentsResource {
 	 *
 	 * Scope `metadata` · 1 request / 50 s.
 	 */
-	async list(options: ListOptions = {}): Promise<TradableInstrument[]> {
+	async list(options: ListOptions = {}): Promise<Instrument[]> {
 		const { refresh = false, signal } = options;
 		const { cache, cacheNamespace, metadataTtlMs, transport } = this.#context;
 		return cache.load(
@@ -72,7 +78,7 @@ export class InstrumentsResource {
 			refresh,
 			async () => {
 				const { data } = await transport.request<TradableInstrument[] | undefined>(ENDPOINTS.listInstruments);
-				return Array.isArray(data) ? data : [];
+				return Array.isArray(data) ? data.filter(hasTicker) : [];
 			},
 			signal,
 		);
@@ -85,7 +91,7 @@ export class InstrumentsResource {
 	 * @example
 	 * const [apple] = await t212.instruments.search("Apple", { currency: "USD" });
 	 */
-	async search(query: string, options: SearchOptions = {}): Promise<TradableInstrument[]> {
+	async search(query: string, options: SearchOptions = {}): Promise<Instrument[]> {
 		const { limit = 10, type, currency, ...list } = options;
 		const trimmed = query.trim();
 		if (!trimmed)
@@ -97,13 +103,13 @@ export class InstrumentsResource {
 			.filter((instrument) => passesFilters(instrument, filters))
 			.map((instrument) => ({ instrument, score: matchScore(instrument, trimmed) }))
 			.filter((entry) => entry.score > 0)
-			.sort((a, b) => b.score - a.score || (a.instrument.ticker ?? "").localeCompare(b.instrument.ticker ?? ""))
+			.sort((a, b) => b.score - a.score || a.instrument.ticker.localeCompare(b.instrument.ticker))
 			.slice(0, limit)
 			.map((entry) => entry.instrument);
 	}
 
 	/** The instrument with exactly this Trading 212 ticker, or `undefined`. */
-	async find(ticker: string, options: ListOptions = {}): Promise<TradableInstrument | undefined> {
+	async find(ticker: string, options: ListOptions = {}): Promise<Instrument | undefined> {
 		return (await this.list(options)).find((instrument) => instrument.ticker === ticker);
 	}
 
@@ -114,7 +120,7 @@ export class InstrumentsResource {
 	 * @example
 	 * const apple = await t212.instruments.resolve("AAPL", { currency: "USD" }); // AAPL_US_EQ
 	 */
-	async resolve(query: string, options: ResolveOptions = {}): Promise<TradableInstrument> {
+	async resolve(query: string, options: ResolveOptions = {}): Promise<Instrument> {
 		const { type, currency, ...list } = options;
 		const ranked = await this.search(query, {
 			...list,
@@ -129,7 +135,7 @@ export class InstrumentsResource {
 		if (best && top >= 80 && tied.length === 1) return best;
 		const suggestions = ranked
 			.slice(0, 5)
-			.map((instrument) => ({ ticker: instrument.ticker ?? "", name: instrument.name ?? undefined }));
+			.map((instrument) => ({ ticker: instrument.ticker, name: instrument.name ?? undefined }));
 		const why =
 			ranked.length === 0
 				? "nothing matched"

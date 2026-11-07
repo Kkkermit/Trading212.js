@@ -29,10 +29,9 @@ export function isRetryable(error: unknown): boolean {
 
 /** How long to wait before try number `attempt + 1`. A 429 waits for its reset rather than guessing. */
 export function retryDelay(attempt: number, retry: ResolvedRetry, error: unknown, random = Math.random): number {
-	const ceiling = Math.min(retry.maxDelayMs, retry.baseDelayMs * 2 ** (attempt - 1));
-	const jitter = Math.floor(random() * ceiling);
 	if (error instanceof RateLimitError && error.retryAfterMs !== undefined) {
 		return error.retryAfterMs + Math.floor(random() * 250);
 	}
-	return jitter;
+	const ceiling = Math.min(retry.maxDelayMs, retry.baseDelayMs * 2 ** (attempt - 1));
+	return Math.floor(random() * ceiling);
 }

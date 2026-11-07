@@ -48,7 +48,7 @@ export interface Trading212Options {
 	dangerouslyAllowBrowser?: boolean;
 }
 
-export interface ResolvedOptions {
+interface ResolvedOptions {
 	readonly environment: Environment;
 	readonly apiKey: string;
 	readonly apiSecret: string;
@@ -121,6 +121,23 @@ function resolveOrigin(baseUrl: string | undefined, environment: Environment): {
 	return { origin: url.origin, official: url.origin === official };
 }
 
+const ENVIRONMENT_ALIASES = new Map<string, Environment>([
+	["prod", "live"],
+	["production", "live"],
+	["real", "live"],
+	["paper", "demo"],
+	["practice", "demo"],
+	["sandbox", "demo"],
+	["test", "demo"],
+]);
+
+// Names people reach for get a pointer to the right one, never a silent guess, because live trades real money.
+function environmentHint(value: unknown, field: string): string {
+	const alias = typeof value === "string" ? ENVIRONMENT_ALIASES.get(value.trim().toLowerCase()) : undefined;
+	if (alias) return `Trading 212 calls that environment "${alias}": set ${field} to ${alias}.`;
+	return `Set ${field} to demo or live. There is deliberately no default, because live trades real money.`;
+}
+
 function isBrowser(): boolean {
 	const scope = globalThis as { document?: unknown; window?: unknown };
 	return typeof scope.document === "object" && typeof scope.window === "object";
@@ -129,11 +146,7 @@ function isBrowser(): boolean {
 export function resolveOptions(options: Trading212Options): ResolvedOptions {
 	if (typeof options !== "object" || (options as unknown) === null) fail("options", "Pass an options object.");
 	if (!isEnvironment(options.environment)) {
-		fail(
-			"environment",
-			'environment must be "demo" or "live".',
-			"There is deliberately no default: say which one, because live trades real money.",
-		);
+		fail("environment", 'environment must be "demo" or "live".', environmentHint(options.environment, "environment"));
 	}
 	if (isBrowser() && !options.dangerouslyAllowBrowser) {
 		fail(
@@ -199,12 +212,14 @@ export function optionsFromEnv(env?: EnvSource): Pick<Trading212Options, "enviro
 		fail(
 			"T212_ENV",
 			environment ? `T212_ENV is "${environment}", which is neither demo nor live.` : "T212_ENV is not set.",
-			"Set T212_ENV to demo or live. There is deliberately no default, because live trades real money.",
+			environmentHint(environment, "T212_ENV"),
 		);
 	}
 	const prefix = environment === "demo" ? "T212_DEMO" : "T212_LIVE";
-	const apiKey = source.T212_API_KEY ?? source[`${prefix}_API_KEY`];
-	const apiSecret = source.T212_API_SECRET ?? source[`${prefix}_API_SECRET`];
+	// A blank value, as in .env.example, counts as unset.
+	const read = (name: string): string | undefined => (source[name] === "" ? undefined : source[name]);
+	const apiKey = read("T212_API_KEY") ?? read(`${prefix}_API_KEY`);
+	const apiSecret = read("T212_API_SECRET") ?? read(`${prefix}_API_SECRET`);
 	if (!apiKey) fail("T212_API_KEY", `Neither T212_API_KEY nor ${prefix}_API_KEY is set.`);
 	if (!apiSecret) fail("T212_API_SECRET", `Neither T212_API_SECRET nor ${prefix}_API_SECRET is set.`);
 	return { environment, apiKey, apiSecret };

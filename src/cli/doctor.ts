@@ -6,15 +6,15 @@ import { isTrading212Error, MissingScopeError, NotAvailableInDemoError } from ".
 import { createRedactor } from "../logging/redact";
 import { VERSION } from "../version";
 
-export type CheckStatus = "ok" | "missing" | "warning" | "failed" | "skipped";
+type CheckStatus = "ok" | "missing" | "warning" | "failed" | "skipped";
 
-export interface CheckResult {
+interface CheckResult {
 	readonly name: string;
 	readonly status: CheckStatus;
 	readonly detail: string;
 }
 
-export interface DoctorOptions {
+interface DoctorOptions {
 	readonly env: EnvSource;
 	readonly json?: boolean;
 	readonly color?: boolean;

@@ -268,10 +268,7 @@ export class TimeoutError extends Trading212Error {
 	}
 }
 
-/**
- * An order (or other trade) may or may not have gone through: the connection failed, timed out or was aborted after
- * the request left. Never resend without checking `orders.list()` and the order history first.
- */
+/** An order, cancellation or pie change may or may not have happened. Check `orders.list()` before resending. */
 export class OrderOutcomeUnknownError extends Trading212Error {
 	static override readonly kind = "OrderOutcomeUnknownError";
 	/** What was sent, so it can be looked for. */
@@ -283,7 +280,7 @@ export class OrderOutcomeUnknownError extends Trading212Error {
 	}
 }
 
-/** A trade on live was refused before sending, because the client was not created with `trading: "enabled"`. */
+/** A trade was refused before sending because trading is off for this client, the default on live. */
 export class TradingDisabledError extends Trading212Error {
 	static override readonly kind = "TradingDisabledError";
 

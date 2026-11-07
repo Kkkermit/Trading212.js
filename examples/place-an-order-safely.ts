@@ -12,11 +12,11 @@ if (!market.open) {
 	process.exit(0);
 }
 
-const preview = await t212.orders.buy({ ticker: apple.ticker ?? "", quantity: 0.1 }, { dryRun: true });
+const preview = await t212.orders.buy({ ticker: apple.ticker, quantity: 0.1 }, { dryRun: true });
 console.log("Would send:", preview.body, preview.wouldSend ? "" : "(this client has trading off)");
 
 try {
-	const order = await t212.orders.buy({ ticker: apple.ticker ?? "", quantity: 0.1 });
+	const order = await t212.orders.buy({ ticker: apple.ticker, quantity: 0.1 });
 	const settled = await t212.orders.waitFor(order);
 	console.log(`Order ${settled.id ?? "?"} is ${settled.status ?? "?"}.`);
 } catch (error) {

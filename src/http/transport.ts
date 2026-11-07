@@ -55,7 +55,7 @@ export interface Hooks {
 
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
-export interface TransportConfig {
+interface TransportConfig {
 	readonly environment: Environment;
 	readonly origin: string;
 	readonly authorization: string;
@@ -78,7 +78,7 @@ export interface CallOptions {
 	timeoutMs?: number;
 }
 
-export interface RequestOptions extends CallOptions {
+interface RequestOptions extends CallOptions {
 	params?: Record<string, string | number>;
 	query?: Record<string, string | number | boolean | undefined>;
 	/** An already-validated query string, used to follow pagination. */
@@ -88,7 +88,7 @@ export interface RequestOptions extends CallOptions {
 	expectBody?: boolean;
 }
 
-export interface TransportResponse<T> {
+interface TransportResponse<T> {
 	readonly data: T;
 	readonly status: number;
 	readonly rateLimit: RateLimitInfo | undefined;
@@ -151,10 +151,6 @@ export class Transport {
 		this.#config = config;
 	}
 
-	get environment(): Environment {
-		return this.#config.environment;
-	}
-
 	get origin(): string {
 		return this.#config.origin;
 	}
@@ -163,19 +159,11 @@ export class Transport {
 		return this.#config.trading === "enabled";
 	}
 
-	get logger(): Logger {
-		return this.#config.logger;
-	}
-
-	get redact(): Redactor {
-		return this.#config.redact;
-	}
-
 	rateLimitSnapshot(): Record<string, EndpointBudget> {
 		return this.#config.rateLimiter.snapshot(Object.values(ENDPOINTS));
 	}
 
-	/** The request a trade would make, after the same checks as a real one, without sending it. */
+	/** Builds a request's URL and description without sending it. */
 	describe(endpoint: EndpointDefinition, options: RequestOptions = {}): RequestDescription & { url: string } {
 		const path = buildPath(endpoint.path, options.params);
 		const query = options.rawQuery ?? encodeQuery(options.query);
@@ -279,7 +267,6 @@ export class Transport {
 	): Promise<TransportResponse<T>> {
 		const config = this.#config;
 		await this.#waitForBudget(endpoint, description, options.signal);
-		// An abort that lands after the wait but before sending still means nothing was sent.
 		if (options.signal?.aborted) throw options.signal.reason as Error;
 
 		const headers: Record<string, string> = { Authorization: config.authorization, Accept: "application/json" };
@@ -368,7 +355,7 @@ export class Transport {
 		status: number,
 	): unknown {
 		const where = `${description.method} ${description.path}`;
-		// Trading 212 answered with a success, so a trade it cannot describe has very likely gone through.
+		// A success Trading 212 cannot describe means the trade has very likely gone through.
 		const unreadable = (message: string, cause?: unknown): Error =>
 			endpoint.kind === "trade"
 				? new OrderOutcomeUnknownError(`${where} succeeded (${status}) but ${message}.`, {
@@ -441,7 +428,8 @@ export class Transport {
 				cause: error,
 			});
 		}
-		return new NetworkError(`${where} could not connect${code ? ` (${code})` : ""}.`, {
+		const failure = sent ? "the connection broke" : "could not connect";
+		return new NetworkError(`${where} failed: ${failure}${code ? ` (${code})` : ""}.`, {
 			request: description,
 			sent,
 			hint: HINTS.network(sent),

@@ -122,7 +122,7 @@ export class Trading212 {
 		this.orders = new OrdersResource(context, this.positions, this.history.orders);
 		this.reports = new ReportsResource(context);
 		this.portfolio = new PortfolioResource(this.account, this.positions);
-		// eslint-disable-next-line @typescript-eslint/no-deprecated -- the client still has to build what it offers
+		// eslint-disable-next-line @typescript-eslint/no-deprecated -- deprecated upstream, still offered
 		this.pies = new PiesResource(context);
 	}
 
@@ -137,7 +137,7 @@ export class Trading212 {
 		return new Trading212({ ...optionsFromEnv(env), ...overrides });
 	}
 
-	/** Whether this client may place, cancel or change anything. Always enabled on demo. */
+	/** Whether this client may place, cancel or change anything. */
 	get trading(): "enabled" | "disabled" {
 		return this.#transport.tradingEnabled ? "enabled" : "disabled";
 	}

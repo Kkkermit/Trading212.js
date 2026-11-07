@@ -64,7 +64,7 @@ export interface DryRunResult {
 	readonly url: string;
 	readonly endpoint: string;
 	readonly body: Readonly<Record<string, unknown>>;
-	/** False when this client would refuse to send it: a live client without `trading: "enabled"`. */
+	/** False when trading is off for this client, so a real call would be refused before sending. */
 	readonly wouldSend: boolean;
 }
 
