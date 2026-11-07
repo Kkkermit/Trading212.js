@@ -22,6 +22,8 @@ export default defineConfig({
 			},
 			favicon: "/favicon.svg",
 			customCss: ["./src/styles/theme.css"],
+			// Long lines wrap with their indentation kept, so an example never runs off a phone's screen.
+			expressiveCode: { defaultProps: { wrap: true, preserveIndent: true } },
 			social: [{ icon: "github", label: "GitHub", href: repository }],
 			editLink: { baseUrl: `${repository}/edit/main/docs/` },
 			lastUpdated: true,

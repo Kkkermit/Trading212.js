@@ -10,3 +10,46 @@
 	--sl-color-accent: #00729e;
 	--sl-color-accent-high: #00344a;
 }
+
+/* A wide table scrolls inside its own frame, and code in it stays on one line instead of breaking mid-name. */
+.sl-markdown-content table {
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+	border-collapse: collapse;
+}
+
+.sl-markdown-content :is(th, td) code {
+	white-space: nowrap;
+}
+
+.sl-markdown-content th {
+	background-color: var(--sl-color-gray-7, var(--sl-color-gray-6));
+}
+
+.sl-markdown-content tbody tr:nth-child(even) {
+	background-color: color-mix(in srgb, var(--sl-color-gray-6) 35%, transparent);
+}
+
+/* Headings in the method reference are code: set them as headings, not as boxed inline code. */
+.sl-markdown-content :is(h2, h3, h4) code {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--sl-color-text-accent);
+	font-size: 0.85em;
+}
+
+.sl-markdown-content h3:has(code) {
+	margin-top: 2.25rem;
+}
+
+@media (max-width: 50rem) {
+	.sl-markdown-content {
+		font-size: 0.975rem;
+	}
+
+	.sl-markdown-content :is(th, td) {
+		padding: 0.5rem 0.65rem;
+	}
+}
