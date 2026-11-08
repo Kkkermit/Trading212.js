@@ -1,0 +1,56 @@
+---
+title: The doctor
+description: The trading212 doctor command checks your key, environment and every permission without trading.
+---
+
+```sh
+npx @kkkermit/trading212.js doctor --env-file .env
+```
+
+The doctor signs in, then tries one read for each permission and reports which are missing. It never prints your key
+or secret, and never places an order.
+
+```
+trading212.js 0.1.0 doctor
+
+✓ settings: environment demo, key 37 characters, secret 43 characters
+✓ sign in: account 12345678 (GBP) on demo
+✓ portfolio: allowed
+✗ history:dividends: not on this key (create one with "history:dividends" ticked)
+· exports: live only
+· orders:execute: not checked: it would need a real order
+✓ trading: orders can be placed on demo
+```
+
+## Usage
+
+```
+trading212 <command> [options]
+
+Commands:
+  doctor            Check your API key, environment and permissions
+  version           Print the version
+
+Options:
+  --env <name>      demo or live (overrides T212_ENV)
+  --env-file <path> Load variables from a file first, such as .env
+  --json            Print the result as JSON
+  -h, --help        Show this help
+```
+
+It reads `T212_ENV`, `T212_API_KEY` and `T212_API_SECRET`, or `T212_DEMO_*` and `T212_LIVE_*`; see
+[Configuration](/Trading212.js/reference/configuration/#environment-variables). Variables already set in your shell
+win over the file, and the file never changes the process's environment.
+
+With the package installed in a project, `npx trading212 doctor` runs the same command.
+
+## Exit codes
+
+| Code | Means                                                                        |
+| ---- | ---------------------------------------------------------------------------- |
+| `0`  | The settings are valid and the key signs in, even if a permission is missing |
+| `1`  | The settings are wrong, or the key does not sign in                          |
+| `2`  | The command was used wrongly: no command, an unknown one, or a bad option    |
+
+Each check is marked ✓ (passed), ✗ (failed or missing), ⚠ (a warning) or · (skipped). `--json` prints
+`{ version, ok, checks }` instead, where each check is `{ name, status, detail }`, for scripts.

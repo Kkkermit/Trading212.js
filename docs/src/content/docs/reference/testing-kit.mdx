@@ -1,0 +1,129 @@
+---
+title: Testing kit
+description: Everything exported from @kkkermit/trading212.js/testing - the fake Trading 212, its controls and state, and scripted fetch.
+---
+
+Everything here is imported from `@kkkermit/trading212.js/testing`. The [testing guide](/Trading212.js/guides/testing/)
+shows how to use it.
+
+## `createFakeTrading212()`
+
+```ts
+createFakeTrading212(options?: {
+	state?: FakeAccountState;
+	environment?: "demo" | "live";
+	client?: Partial<Trading212Options>;
+}): { client: Trading212; server: FakeTrading212Server }
+```
+
+A real client wired to an in-memory Trading 212. Rate limiting is off and trading is enabled, on live too, unless
+`client` says otherwise. `environment` defaults to `demo`.
+
+## The starting account: `FakeAccountState`
+
+Every field is optional.
+
+| Field          | Default                                                 |
+| -------------- | ------------------------------------------------------- |
+| `cash`         | 10,000                                                  |
+| `currency`     | `GBP`; prices are treated as already in it              |
+| `accountId`    | 12345678                                                |
+| `prices`       | `{ [ticker]: price }`; a ticker without one costs 100   |
+| `positions`    | `[{ ticker, quantity, averagePrice?, inPies? }]`        |
+| `instruments`  | `DEFAULT_INSTRUMENTS`                                   |
+| `dividends`    | none                                                    |
+| `transactions` | none                                                    |
+| `exchanges`    | A weekday schedule for each default instrument's market |
+
+## Controls
+
+| Method                               | Does                                                                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `server.setPrice(ticker, price)`     | Sets a ticker's price for every later order and position                                                                             |
+| `server.priceOf(ticker)`             | Reads a ticker's current price                                                                                                       |
+| `server.fill(orderId, price?)`       | Fills a pending limit or stop order, at its limit price or `price`                                                                   |
+| `server.failNext(endpoint, failure)` | Makes the next call to an endpoint fail with `{ status, body, headers }` or `{ network: code }`; queue several to fail several calls |
+| `server.position(ticker)`            | The position as the API would return it, or `undefined`                                                                              |
+
+`setPrice()` and `failNext()` return the server, so calls can be chained.
+
+## State you can read or change
+
+| Property                                               | Holds                                                                        |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `requests`                                             | Every request the client made, without credentials (`RecordedRequest`)       |
+| `marketOpen`                                           | Set `false` to refuse every order with `market-closed`                       |
+| `exportsOnDemo`                                        | Set `true` to offer CSV exports on demo                                      |
+| `cash`                                                 | Free cash                                                                    |
+| `currency`, `accountId`, `environment`                 | As set up                                                                    |
+| `holdings`                                             | A `Map` of ticker to `{ ticker, quantity, averagePrice, inPies, createdAt }` |
+| `pending`                                              | A `Map` of order ID to `{ order, reservedCash, reservedShares }`             |
+| `orderHistory`, `dividends`, `transactions`, `reports` | What the history and report endpoints return                                 |
+| `instruments`, `prices`, `exchanges`                   | The metadata it serves                                                       |
+| `pies`                                                 | A `Map` of pie ID to `{ settings, cash }`                                    |
+| `realisedProfitLoss`                                   | Profit or loss on everything sold                                            |
+| `fetch`                                                | The `fetch` it answers through, to pass to a client of your own              |
+
+A `RecordedRequest` is `{ method, url, path, query, headers, authorized, body }`; `authorized` says whether an
+`Authorization` header was sent, and its value is never kept.
+
+## `FakeTrading212Server`
+
+```ts
+new FakeTrading212Server(state?: FakeAccountState, environment?: "demo" | "live")
+```
+
+The fake on its own, for wiring into a client you build yourself:
+
+```ts
+const server = new FakeTrading212Server({ cash: 500 });
+const t212 = new Trading212({
+	environment: "demo",
+	apiKey: FAKE_API_KEY,
+	apiSecret: FAKE_API_SECRET,
+	fetch: server.fetch,
+	rateLimit: "off",
+});
+```
+
+## Constants and helpers
+
+| Export                                    | Is                                                                                                        |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `FAKE_API_KEY`, `FAKE_API_SECRET`         | The only credentials the fake accepts                                                                     |
+| `DEFAULT_INSTRUMENTS`                     | Apple, Microsoft and Tesla on US markets, and Vanguard's S&P 500 ETF in London                            |
+| `weekOfSessions(from, openUtc, closeUtc)` | A week of weekday sessions from `from`'s day, as working-schedule events, for building your own exchanges |
+
+## `scriptedFetch()`
+
+```ts
+scriptedFetch(steps: ScriptStep[]): { fetch; requests: RecordedRequest[]; pending: () => number }
+```
+
+A `fetch` that answers each request with the next step, in order, and records what it was asked. A step is a
+response `{ status?, body?, headers? }` (an object or array body is sent as JSON), a function from the request to a
+response, or an error to throw as a network failure. `pending()` says how many steps are left.
+
+## `networkError()`
+
+```ts
+networkError(code = "ECONNRESET"): TypeError
+```
+
+A network failure shaped like Node's, with the `code` the client reads to tell "never sent" (such as `ENOTFOUND` or
+`ECONNREFUSED`) from "lost on the way" (such as `ECONNRESET`).
+
+## Types
+
+| Type                | Is                                                                    |
+| ------------------- | --------------------------------------------------------------------- |
+| `CreateFakeOptions` | What `createFakeTrading212()` takes                                   |
+| `FakeAccountState`  | The starting account                                                  |
+| `FakeHolding`       | One starting position: `{ ticker, quantity, averagePrice?, inPies? }` |
+| `FakeHoldingState`  | A position as the fake keeps it, in `server.holdings`                 |
+| `FakePendingOrder`  | A working order and what it has reserved, in `server.pending`         |
+| `FakeFailure`       | What `failNext()` takes: a response, or `{ network: code }`           |
+| `ScriptStep`        | One step of `scriptedFetch()`: a response, a function, or an error    |
+| `ScriptedResponse`  | `{ status?, body?, headers? }`                                        |
+| `ScriptedFetch`     | What `scriptedFetch()` returns: `{ fetch, requests, pending }`        |
+| `RecordedRequest`   | One request either of them recorded                                   |

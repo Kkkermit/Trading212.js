@@ -1,0 +1,11 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"paths": {
+			"@kkkermit/trading212.js": ["../src/index.ts"],
+			"@kkkermit/trading212.js/testing": ["../src/testing/index.ts"],
+			"@kkkermit/trading212.js/csv": ["../src/csv/index.ts"]
+		}
+	},
+	"include": ["./**/*.ts"]
+}

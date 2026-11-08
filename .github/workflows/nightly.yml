@@ -1,0 +1,93 @@
+name: Nightly
+
+on:
+  schedule:
+    # Off the hour: scheduled runs at :00 are the first to be delayed or dropped when GitHub is busy.
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.node == 'latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [22, 24, latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  audit:
+    name: Vulnerabilities and signatures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # npm 10 fails any package whose attestations are all keyless (Sigstore); npm 11 verifies them properly.
+      - name: Registry signatures are valid
+        run: npx --yes npm@11 audit signatures
+      - run: npm audit --audit-level=low
+
+  contract:
+    name: Contract tests against the demo API
+    runs-on: ubuntu-latest
+    environment: demo
+    env:
+      T212_DEMO_API_KEY: ${{ secrets.T212_DEMO_API_KEY }}
+      T212_DEMO_API_SECRET: ${{ secrets.T212_DEMO_API_SECRET }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Run against demo
+        run: |
+          if [ -z "$T212_DEMO_API_KEY" ] || [ -z "$T212_DEMO_API_SECRET" ]; then
+            echo "::notice::Skipped: add T212_DEMO_API_KEY and T212_DEMO_API_SECRET to the demo environment to run these."
+            exit 0
+          fi
+          npm run test:demo
+
+  report:
+    name: Open an issue on failure
+    needs: [test, audit, contract]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly run failed"
+          open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "Failed again: $RUN_URL"
+          else
+            gh issue create --title "$title" --body "The nightly run failed: $RUN_URL"
+          fi

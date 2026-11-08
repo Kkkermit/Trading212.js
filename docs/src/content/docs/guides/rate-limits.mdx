@@ -1,0 +1,45 @@
+---
+title: Rate limits
+description: Per-endpoint budgets, the pace, burst and off modes, and sharing a budget between clients.
+---
+
+import Example from "../../../components/Example.astro";
+
+Trading 212 limits every endpoint separately, **per account**: every key and every IP address on the account shares
+one budget. The [API coverage](/Trading212.js/reference/api-coverage/) page lists each endpoint's limit;
+`ENDPOINTS` holds the same table at run time, and `t212.rateLimits()` shows what the last response headers said.
+
+## Modes
+
+| `rateLimit`      | Does                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| `pace` (default) | Spreads calls evenly over each period, as Trading 212 recommends, so 429s should not happen  |
+| `burst`          | Spends a period's whole allowance at once, then waits for the reset                          |
+| `off`            | Sends immediately; a read that meets a 429 is still retried, after the reset if one is given |
+
+With `pace`, a second `positions.list()` within the same second waits rather than failing.
+
+<Example name="rate-limits" />
+
+`t212.rateLimits()` returns, for every endpoint, `{ limit, periodMs, remaining, resetAt }`: the documented limit and
+period, corrected by the headers, and what the last response said was left and when it resets.
+
+In every mode the client corrects its budget from each response's `x-ratelimit-*` headers, so spending by another
+program on the same account counts as soon as it shows. If a call would have to wait longer than
+`maxRateLimitWaitMs` (default 60 s), it throws `RateLimitError` with `retryAfterMs` instead of hanging.
+
+What demo sends, recorded in `fixtures/errors.json`: answers from the order and history endpoints, refusals and 429s
+included, carry `x-ratelimit-limit`, `x-ratelimit-period`, `x-ratelimit-remaining` and `x-ratelimit-used`, and
+`x-ratelimit-reset` as a Unix time in seconds; a 429 adds `Retry-After: 0`, which the client ignores in favour of the
+reset. The exports endpoint and a refused key send none of them. When a 429 arrives without them, the client closes
+the endpoint for one whole period before it sends there again.
+
+## Several clients, several processes
+
+Clients made from the same key in the same process share one budget, even across ESM and CommonJS copies of the
+package. Two different keys for the same account cannot be told apart until Trading 212 answers, so they keep
+separate budgets and the response headers correct them. Separate processes cannot see each other's spending: run one
+process per account where you can, and let the headers and retries absorb the rest.
+
+If a 429 arrives while other calls are already waiting for a slot, they wait for the reset too rather than going out
+into a closed budget.

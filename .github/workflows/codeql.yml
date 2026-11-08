@@ -1,0 +1,46 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "41 4 * * 2"
+
+permissions:
+  contents: read
+
+jobs:
+  analyse:
+    name: Analyse
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      # CodeQL reads its own workflow run.
+      actions: read
+    steps:
+      # Code scanning on a private repository needs GitHub Advanced Security. A scheduled run carries no repository
+      # details, so the visibility is asked for rather than read from the event.
+      - name: Check code scanning is available
+        id: availability
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)" = "false" ]; then
+            echo "scan=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipped: code scanning on a private repository needs GitHub Advanced Security."
+            echo "scan=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.availability.outputs.scan == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: steps.availability.outputs.scan == 'true'
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - if: steps.availability.outputs.scan == 'true'
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3

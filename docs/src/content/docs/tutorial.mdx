@@ -1,0 +1,83 @@
+---
+title: Your first program
+description: Build a small program step by step that checks your account, finds an instrument and places a demo order safely.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+import Example from "../../components/Example.astro";
+
+By the end of this page you will have a program that signs in, shows your portfolio, finds Apple's ticker, checks its
+market is open, previews an order and then places it on **demo**, logging every step. It uses practice money, so
+nothing here can cost you anything.
+
+<Aside>
+	You need the library installed and a demo key in `.env`, as in [Getting started](/Trading212.js/getting-started/)
+	steps 1 to 4.
+</Aside>
+
+## The whole program
+
+Here it is in full. The steps below explain each part.
+
+<Example name="tutorial" file="first-order" />
+
+Run it:
+
+```sh
+node --env-file=.env first-order.mjs   # JavaScript
+npx tsx --env-file=.env first-order.ts # TypeScript
+```
+
+## Step by step
+
+<Steps>
+
+1. **Connect, with logging.**
+
+   `Trading212.fromEnv()` reads `T212_ENV`, `T212_API_KEY` and `T212_API_SECRET`. Its argument sets any other option;
+   here a console logger at `info`, so every order you send is written to the terminal. `verify()` makes one request
+   and tells you which account the key belongs to, so a wrong key fails here rather than halfway through.
+
+2. **Look at what you have.**
+
+   `portfolio.snapshot()` combines the account summary and your positions into totals and a list of holdings, each
+   with its value, profit and share of the portfolio.
+
+3. **Find the ticker.**
+
+   `instruments.resolve("Apple", { currency: "USD" })` turns what a person would type into exactly one instrument.
+   If nothing matches, or several match equally well, it throws `InstrumentNotFoundError`, whose `hint` lists the
+   closest tickers.
+
+4. **Check the market.**
+
+   `exchanges.status(ticker)` reads Trading 212's trading hours. A market order placed while the market is closed is
+   refused, so the program stops early and says when it next opens.
+
+5. **Preview, then place the order.**
+
+   `{ dryRun: true }` builds the exact request without sending it. Then `orders.buy()` sends it, and
+   `orders.waitFor()` checks it until it is filled, cancelled or rejected. The `catch` tells apart a refusal, where
+   nothing was traded, from an unknown outcome, where you must check before trying again.
+
+</Steps>
+
+## What you will see
+
+```
+Account 12345678 on demo, trading enabled
+Total 10432.18, cash 2410.50
+Would send { ticker: 'AAPL_US_EQ', quantity: 1 }
+[trading212] INFO  Sending POST /api/v0/equity/orders/market endpoint=placeMarketOrder attempt=1
+[trading212] INFO  POST /api/v0/equity/orders/market returned 200 in 214 ms endpoint=placeMarketOrder status=200 …
+Order 4231112: FILLED
+```
+
+The numbers are your account's. If the market is closed, you will instead see when it next opens.
+
+## Try changing it
+
+- Sell instead: `t212.orders.sell({ ticker, quantity: 1 })`, or everything you hold with `t212.orders.sellAll(ticker)`.
+- Place a limit order that only fills at your price; see [Orders](/Trading212.js/guides/orders/).
+- Run it against the fake Trading 212 instead of demo; see [Testing your code](/Trading212.js/guides/testing/).
+- Make it run every morning; see [Recipes](/Trading212.js/recipes/#a-report-on-a-schedule).

@@ -1,0 +1,49 @@
+name: Spec drift
+
+on:
+  schedule:
+    # Off the hour: scheduled runs at :00 are the first to be delayed or dropped when GitHub is busy.
+    - cron: "37 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    name: Compare with Trading 212's published spec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run spec:fetch
+      - run: npm run generate
+      - name: Open an issue when anything changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if git diff --quiet -- openapi/trading212.json src; then
+            echo "The spec has not changed."
+            exit 0
+          fi
+          title="Trading 212 changed its API spec"
+          if [ -n "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')" ]; then
+            echo "An issue is already open."
+            exit 0
+          fi
+          {
+            echo "The weekly check found changes in Trading 212's published spec. Run \`npm run spec:fetch\` and \`npm run generate\`, then review:"
+            echo
+            echo '```diff'
+            git diff -- src/http/endpoints.generated.ts src/types/api.generated.ts | head -c 60000
+            echo '```'
+          } > drift.md
+          gh issue create --title "$title" --body-file drift.md

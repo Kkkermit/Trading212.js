@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"target": "ES2023",
+		"lib": ["ES2024", "ESNext.Array"],
+		"types": ["node"],
+		"module": "Preserve",
+		"moduleResolution": "Bundler",
+		"resolveJsonModule": true,
+		"verbatimModuleSyntax": true,
+		"isolatedModules": true,
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"noEmit": true
+	},
+	"include": ["src", "tests", "scripts", "*.config.ts"]
+}

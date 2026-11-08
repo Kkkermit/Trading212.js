@@ -1,0 +1,95 @@
+---
+title: Types
+description: The TypeScript types the package exports, for annotating your own code.
+---
+
+The package ships its types, so you rarely need to write one: editors infer them. These are exported for when you
+want to name one, such as in a function's parameters. Import them with `import type`:
+
+```ts
+import type { Order, Position, Trading212Options } from "@kkkermit/trading212.js";
+
+function describe(order: Order): string {
+	return `${order.side} ${order.quantity} ${order.ticker}: ${order.status}`;
+}
+```
+
+## Data from Trading 212
+
+Generated from the official spec. Every field is optional, because the API may leave any of them out.
+
+| Type                            | Is                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| `AccountSummary`                | `account.summary()`: cash, investments, total value, currency, ID                |
+| `Position`                      | One open position                                                                |
+| `Instrument`                    | An instrument the account can trade, always with a `ticker`                      |
+| `TradableInstrument`            | The same as Trading 212 sends it, where `ticker` may be missing                  |
+| `Exchange`                      | An exchange and its working schedules                                            |
+| `Order`                         | An order, pending or settled                                                     |
+| `HistoricalOrder`               | `{ order, fill }`, from `history.orders`                                         |
+| `Dividend`                      | A dividend payment (`HistoryDividendItem`)                                       |
+| `Transaction`                   | A deposit, withdrawal, fee or interest payment (`HistoryTransactionItem`)        |
+| `Report`                        | A requested CSV export and its status (`ReportResponse`)                         |
+| `Pie`, `PieDetails`, `PieInput` | A pie as listed, a pie with its instruments, and what `create` and `update` take |
+
+Every other model in the spec is exported under its own name too.
+
+## Options
+
+| Type                                                                                   | For                                                                              |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `Trading212Options`                                                                    | `new Trading212()`; see [Configuration](/Trading212.js/reference/configuration/) |
+| `Environment`                                                                          | `"demo"` or `"live"`                                                             |
+| `CallOptions`                                                                          | `{ signal?, timeoutMs? }`, taken by every method                                 |
+| `RetryOptions`                                                                         | `{ maxAttempts?, baseDelayMs?, maxDelayMs? }`                                    |
+| `RateLimitMode`                                                                        | `"pace"`, `"burst"` or `"off"`                                                   |
+| `OrderInput`                                                                           | What `buy()` and `sell()` take                                                   |
+| `MarketOrderRequest`, `LimitOrderRequest`, `StopOrderRequest`, `StopLimitOrderRequest` | What `market()`, `limit()`, `stop()` and `stopLimit()` take                      |
+| `OrderType`                                                                            | `"market"`, `"limit"`, `"stop"` or `"stopLimit"`                                 |
+| `OrderTimeValidity`                                                                    | `"DAY"` or `"GOOD_TILL_CANCEL"`                                                  |
+| `PlaceOptions`                                                                         | `CallOptions` plus `dryRun`                                                      |
+| `SellAllOptions`                                                                       | `PlaceOptions` plus `extendedHours`                                              |
+| `WaitOptions`                                                                          | `orders.waitFor()`'s `timeoutMs`, `intervalMs` and `signal`                      |
+| `ListOptions`, `SearchOptions`, `ResolveOptions`                                       | The instrument list, `search()` and `resolve()`                                  |
+| `PageOptions`, `IterateOptions`                                                        | History's `list()` and `all()`                                                   |
+| `ReportRequest`, `ReportWaitOptions`                                                   | Reports' request and waiting                                                     |
+| `CacheStore`                                                                           | A cache of your own                                                              |
+| `Hooks`                                                                                | `onRequest`, `onResponse`, `onRetry` and `onRateLimitWait`                       |
+| `FetchLike`                                                                            | A `fetch` of your own                                                            |
+| `EnvSource`                                                                            | An object of environment variables, for `fromEnv()`                              |
+
+## Results
+
+| Type                                   | Is                                                   |
+| -------------------------------------- | ---------------------------------------------------- |
+| `VerifyResult`                         | What `verify()` returns                              |
+| `PortfolioSnapshot`, `HoldingSnapshot` | What `portfolio.snapshot()` returns, and one holding |
+| `MarketStatus`, `MarketSession`        | What `exchanges.status()` returns, and its session   |
+| `DryRunResult`                         | What an order with `{ dryRun: true }` returns        |
+| `Placed`                               | `Order` or `DryRunResult`, depending on `dryRun`     |
+| `Page`                                 | One page of history                                  |
+| `ExportResult`                         | `{ report, csv }`, from `reports.export()`           |
+| `EndpointBudget`                       | One endpoint's entry in `rateLimits()`               |
+
+## Errors
+
+| Type                   | Is                                                           |
+| ---------------------- | ------------------------------------------------------------ |
+| `ErrorCode`            | Every value of `error.code`                                  |
+| `ErrorDetails`         | The fields every error may carry                             |
+| `RequestDescription`   | `{ method, path, endpoint }`, on `error.request`             |
+| `ValidationIssue`      | `{ field, message }`, in `error.issues`                      |
+| `OrderRejectionReason` | The codes `OrderRejectedError.reason` takes                  |
+| `InstrumentSuggestion` | `{ ticker, name }`, in `InstrumentNotFoundError.suggestions` |
+| `ParsedErrorBody`      | What `parseErrorBody()` returns                              |
+
+## Logging, hooks and endpoints
+
+| Type                                                                                                                                                                                         | Is                                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `Logger`, `LogLevel`, `LogFields`                                                                                                                                                            | A logger, its levels and its fields               |
+| `ConsoleLike`, `FieldsFirstMethod`                                                                                                                                                           | What `consoleLogger()` and `fieldsFirst()` accept |
+| `RequestEvent`, `ResponseEvent`, `RetryEvent`, `RateLimitWaitEvent`                                                                                                                          | What each hook receives                           |
+| `RateLimitInfo`                                                                                                                                                                              | What the rate-limit headers said                  |
+| `EndpointDefinition`, `EndpointId`, `EndpointKind`, `EndpointRateLimit`, `HttpMethod`                                                                                                        | One entry of `ENDPOINTS`, and its parts           |
+| `AccountResource`, `PositionsResource`, `PortfolioResource`, `InstrumentsResource`, `ExchangesResource`, `OrdersResource`, `HistoryResource`, `PagedList`, `ReportsResource`, `PiesResource` | The client's properties                           |

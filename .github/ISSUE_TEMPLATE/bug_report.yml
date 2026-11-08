@@ -1,0 +1,49 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste an API key or secret.** The library redacts them from its own errors and logs, but check anything you copy.
+        Security problems go to the [private advisory form](https://github.com/Kkkermit/Trading212.js/security/advisories/new), not here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: Code that shows it
+      description: The smallest snippet that reproduces it. The fake server in `@kkkermit/trading212.js/testing` is ideal for this.
+      render: ts
+  - type: textarea
+    id: error
+    attributes:
+      label: Error
+      description: The output of `error.toLog()`, if there was one.
+      render: json
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Trading 212 environment
+      options: [demo, live, the fake server, not relevant]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Library version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      placeholder: "Node 22.12, Bun 1.2, Deno 2.1"
+    validations:
+      required: true

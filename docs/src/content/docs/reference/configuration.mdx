@@ -1,0 +1,73 @@
+---
+title: Configuration
+description: Every client option, the environment variables fromEnv reads, and the options each call takes.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
+
+## Client options
+
+```ts
+const t212 = new Trading212({ environment: "demo", apiKey, apiSecret, ...rest });
+```
+
+| Option                    | Default                                                   | What it does                                                                          |
+| ------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `environment`             | required                                                  | `"demo"` or `"live"`                                                                  |
+| `apiKey`, `apiSecret`     | required                                                  | Checked for whitespace, swaps and other copy-paste slips                              |
+| `trading`                 | enabled on Trading 212's demo host, otherwise disabled    | Whether orders, cancellations and pie changes may be sent                             |
+| `timeoutMs`               | `15000`                                                   | Per request; override per call with `{ timeoutMs }`                                   |
+| `retry`                   | `{ maxAttempts: 3, baseDelayMs: 500, maxDelayMs: 10000 }` | Reads only; `false` turns retries off                                                 |
+| `rateLimit`               | `"pace"`                                                  | `"pace"`, `"burst"` or `"off"`; see [Rate limits](/Trading212.js/guides/rate-limits/) |
+| `maxRateLimitWaitMs`      | `60000`                                                   | Throw `RateLimitError` rather than wait longer than this                              |
+| `logger`                  | silent                                                    | See [Logging and hooks](/Trading212.js/guides/logging/)                               |
+| `hooks`                   | none                                                      | `onRequest`, `onResponse`, `onRetry`, `onRateLimitWait`                               |
+| `cache`, `metadataTtlMs`  | memory, 1 hour                                            | Where the instrument and exchange lists are kept, and for how long                    |
+| `fetch`                   | the global `fetch`                                        | For proxies, tracing and tests                                                        |
+| `baseUrl`                 | Trading 212's host                                        | Tests and proxies only; `https://`, or `http://localhost`                             |
+| `userAgent`               | none                                                      | Appended to the `trading212.js/<version>` user agent                                  |
+| `dangerouslyAllowBrowser` | `false`                                                   | Lets the client start in a browser; see the warning below                             |
+
+Durations are milliseconds. A fraction is rounded up to a whole millisecond; zero, a negative number or a value that
+is not a number throws `ConfigurationError`.
+
+<Aside type="caution" title="trading and baseUrl">
+	Only Trading 212's own demo host trades by default. A client on live, or one pointed at a custom `baseUrl` (which
+	could forward anywhere, including live), only reads until you pass `trading: "enabled"`. `trading: "disabled"` is
+	honoured on demo too.
+</Aside>
+
+<Aside type="danger" title="dangerouslyAllowBrowser">
+	Trading 212 refuses requests from web pages, and any key you ship to a browser is public. Call the API from a server
+	instead.
+</Aside>
+
+## Environment variables
+
+`Trading212.fromEnv(overrides?)` and the doctor read these. The library never reads a `.env` file itself; load one
+with `node --env-file=.env` or your framework.
+
+| Variable                                    | What it is                                               |
+| ------------------------------------------- | -------------------------------------------------------- |
+| `T212_ENV`                                  | `demo` or `live`, required, with no default              |
+| `T212_API_KEY`, `T212_API_SECRET`           | The key and secret for the environment `T212_ENV` names  |
+| `T212_DEMO_API_KEY`, `T212_DEMO_API_SECRET` | Used on demo when the plain variables are unset or blank |
+| `T212_LIVE_API_KEY`, `T212_LIVE_API_SECRET` | Used on live when the plain variables are unset or blank |
+
+`fromEnv()` takes any other option as `overrides`, such as `Trading212.fromEnv({ trading: "enabled" })`.
+
+## Options on every call
+
+Every method takes a last argument of call options:
+
+| Option      | What it does                                                                                                |
+| ----------- | ----------------------------------------------------------------------------------------------------------- |
+| `signal`    | An `AbortSignal` that cancels the call. A trade aborted after it was sent throws `OrderOutcomeUnknownError` |
+| `timeoutMs` | This call's timeout, in place of the client's                                                               |
+
+<Example name="cancel-a-call" />
+
+The instrument and exchange lists take `signal` and `refresh` but not `timeoutMs`: one download is shared by every
+caller, so it uses the client's own timeout. `orders.waitFor()` and `reports.waitFor()` read `timeoutMs` as the
+longest to wait in total, and also take `intervalMs`, the time between checks.

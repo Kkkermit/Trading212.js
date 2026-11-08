@@ -1,0 +1,50 @@
+---
+title: History and pagination
+description: Past orders, dividends and transactions, one page at a time or every item with for await.
+---
+
+import Example from "../../../components/Example.astro";
+
+| List                   | Holds                                               | Filters           | Permission             |
+| ---------------------- | --------------------------------------------------- | ----------------- | ---------------------- |
+| `history.orders`       | Filled and cancelled orders, with their fills       | `ticker`          | `history:orders`       |
+| `history.dividends`    | Dividends paid out                                  | `ticker`          | `history:dividends`    |
+| `history.transactions` | Deposits, withdrawals, fees, transfers and interest | `time`, from then | `history:transactions` |
+
+Each allows 20 requests a minute, and each has the same two methods: `list()` for one page and `all()` for every
+item.
+
+## Every item
+
+<Example name="dividends-total" />
+
+`all()` fetches pages as the loop asks for them, newest first. It takes:
+
+| Option                | Does                                                        |
+| --------------------- | ----------------------------------------------------------- |
+| `pageSize`            | Items per request, 1 to 50. Default 50, the fewest requests |
+| `maxPages`            | Stop after this many pages                                  |
+| `maxItems`            | Stop after this many items                                  |
+| `cursor`              | Start from a saved cursor                                   |
+| filters               | `ticker`, or `time` for transactions                        |
+| `signal`, `timeoutMs` | Cancel it, or limit each request                            |
+
+It stops without fetching another page once a limit is reached. To collect everything into an array, use
+`await Array.fromAsync(t212.history.dividends.all())`.
+
+## One page at a time, and resuming
+
+<Example name="history-pages" />
+
+`list()` returns one page: `items`, `nextCursor` (a string, or `null` on the last page), `hasMore`, and `next()`, which
+fetches the following page or resolves to `null`. `limit` is 1 to 50; Trading 212's default is 20. A cursor is a plain
+string, so you can store it and carry on later with `{ cursor }`.
+
+If a request fails part-way through `all()`, the error carries `resumeCursor`: pass it as `cursor` to pick up where it
+stopped.
+
+## Rate limits and safety
+
+A long history takes a while at 20 requests a minute; the client paces itself rather than hitting the limit, so a
+loop over thousands of items simply runs for a few minutes. `nextPagePath` from Trading 212 is followed only if it
+points back at the same endpoint on the same host, because the next request carries your credentials.

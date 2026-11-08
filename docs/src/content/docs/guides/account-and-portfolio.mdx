@@ -1,0 +1,62 @@
+---
+title: Account and portfolio
+description: The account summary, positions and the portfolio snapshot, and which currency each amount is in.
+---
+
+import Example from "../../../components/Example.astro";
+
+| Method                  | Returns                                                         | Permission  | Limit   |
+| ----------------------- | --------------------------------------------------------------- | ----------- | ------- |
+| `account.summary()`     | Cash, investments, total value, currency and account ID         | `account`   | 1 / 5 s |
+| `verify()`              | `{ environment, accountId, currency, trading }`, from the above | `account`   | 1 / 5 s |
+| `positions.list()`      | Every open position                                             | `portfolio` | 1 / 1 s |
+| `positions.get(ticker)` | One ticker's position, or `undefined`                           | `portfolio` | 1 / 1 s |
+| `portfolio.snapshot()`  | Totals plus every holding's value, profit and weight            | both        | both    |
+
+## Currencies
+
+Totals, values and dividends are in the account's **primary currency**. Prices per share (`averagePricePaid`,
+`currentPrice`) are in the instrument's currency, and a transaction's `amount` is in its own `currency`. Prices of UK
+instruments quoted in GBX are in pence.
+
+Every field in a response is typed as optional, because the API may leave any of them out. In TypeScript that means
+writing `summary.totalValue ?? 0` rather than `summary.totalValue`.
+
+## The account summary
+
+```ts
+const summary = await t212.account.summary();
+console.log(summary.totalValue, summary.currency, summary.cash?.availableToTrade);
+```
+
+`t212.verify()` makes the same request and returns `{ environment, accountId, currency, trading }`, which is the
+quickest way to check a key works.
+
+## Positions
+
+<Example name="positions" />
+
+`positions.get()` matches the ticker itself rather than trusting the filter, so it never returns a different holding.
+`quantityAvailableForTrading` leaves out shares held in pies and those reserved by pending orders; that is what you can
+sell.
+
+## The portfolio snapshot
+
+<Example name="portfolio-report" />
+
+`snapshot()` makes two requests, the summary and the positions, and returns:
+
+| Field                  | Holds                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `currency`             | The account's primary currency, such as `GBP`                                                 |
+| `totalValue`           | Everything, cash included                                                                     |
+| `cash`                 | Free cash, available to trade                                                                 |
+| `invested`             | The current value of all holdings                                                             |
+| `unrealisedProfitLoss` | Profit or loss on what you still hold                                                         |
+| `realisedProfitLoss`   | Profit or loss on what you have sold                                                          |
+| `holdings`             | `{ ticker, name, quantity, value, cost, profitLoss, profitLossRatio, weight }`, largest first |
+| `takenAt`              | When it was made                                                                              |
+
+`weight` is a holding's share of the invested total (0.25 is a quarter) and `profitLossRatio` its profit or loss as a
+fraction of its cost (0.1 is 10%). `buildPortfolioSnapshot(summary, positions)` does the same calculation on data you
+already have, with no request.

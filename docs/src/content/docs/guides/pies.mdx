@@ -1,0 +1,28 @@
+---
+title: Pies
+description: The deprecated pie endpoints, which still work.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
+
+<Aside type="caution" title="Deprecated">
+	Trading 212 has deprecated the pie endpoints. They still work, but will not be updated and may be removed. The first
+	call to each logs a warning, and TypeScript marks `t212.pies` as deprecated.
+</Aside>
+
+| Method                      | Does                                    | Permission   | Limit    |
+| --------------------------- | --------------------------------------- | ------------ | -------- |
+| `pies.list()`               | Every pie, with its progress            | `pies:read`  | 1 / 30 s |
+| `pies.get(id)`              | One pie with its instruments            | `pies:read`  | 1 / 5 s  |
+| `pies.create(pie)`          | Makes a pie                             | `pies:write` | 1 / 5 s  |
+| `pies.update(id, pie)`      | Changes a pie's settings or instruments | `pies:write` | 1 / 5 s  |
+| `pies.duplicate(id, copy?)` | Copies a pie, optionally renamed        | `pies:write` | 1 / 5 s  |
+| `pies.delete(id)`           | Deletes a pie                           | `pies:write` | 1 / 5 s  |
+
+<Example name="pies" />
+
+A pie takes `name`, `icon`, `goal`, `endDate`, `dividendCashAction` (`"REINVEST"` or `"TO_ACCOUNT_CASH"`) and
+`instrumentShares`, a map of ticker to its share of the pie, adding up to 1.
+
+Changing a pie counts as trading: a live client needs `trading: "enabled"`, and a change is never retried.

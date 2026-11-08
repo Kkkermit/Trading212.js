@@ -1,0 +1,109 @@
+---
+title: Logging and hooks
+description: What the client logs and at which level, sending it to the console or any logger, logging errors safely, and hooks for metrics.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
+
+The client says nothing until you give it a logger. Then it writes one line per event, with every field passed
+through the same redaction as errors, so no credential ever reaches a log.
+
+## The console
+
+<Example name="logging-console" />
+
+`consoleLogger({ level })` writes one line per event to the console, dropping anything below `level` (default
+`info`). Each line starts with `[trading212]` and the level, then the message, then the fields as `key=value`:
+
+```
+[trading212] INFO  Sending POST /api/v0/equity/orders/market endpoint=placeMarketOrder attempt=1
+[trading212] INFO  POST /api/v0/equity/orders/market returned 200 in 212 ms endpoint=placeMarketOrder status=200 durationMs=212 rateLimitRemaining=49
+[trading212] WARN  Retrying GET /api/v0/equity/account/summary in 480 ms. endpoint=getAccountSummary attempt=1 delayMs=480 code=server
+```
+
+`logger: console` works too: it shows every level, with the fields as an object.
+
+## What is logged, and when
+
+| Level   | When                                                                                                                                                                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `debug` | Every read: the request, and the answer with its status, duration and remaining budget; short rate-limit waits; a read that failed for good                                                             |
+| `info`  | Everything that changes your account: orders, cancellations, pie changes and report requests, each with its answer, and the reason when one is refused                                                  |
+| `warn`  | An order that may or may not have gone through; every retry; rate-limit waits of 5 s or more; the first call to a deprecated endpoint; a `baseUrl` that is not Trading 212's; a cache store that failed |
+| `error` | Never. The library throws, and you decide what to log                                                                                                                                                   |
+
+So the default `info` level gives you a record of every order and its outcome, and stays quiet about reads. Response
+bodies are never logged, and a logger that throws cannot break a request.
+
+A refused order is logged with the reason and what to do about it. This is the line demo's real refusal of a
+too-small order produces:
+
+```
+[trading212] INFO  POST /api/v0/equity/orders/limit was refused: a quantity of 0.1 is below the smallest Trading 212 accepts for this order, 1.33914872. endpoint=placeLimitOrder code=order_rejected status=400 apiCode=min-quantity-exceeded traceId=523a4ed1240a1f94650c814a50c5485a hint="The order is too small. Raise the quantity to at least `error.minQuantity`, the smallest Trading 212 accepts for it."
+```
+
+| Field                | Means                                                            |
+| -------------------- | ---------------------------------------------------------------- |
+| `endpoint`           | The library's name for the endpoint, such as `placeMarketOrder`  |
+| `attempt`            | 1 for the first try, then 2, 3 … for retries of a read           |
+| `status`             | The HTTP status                                                  |
+| `durationMs`         | How long the answer took                                         |
+| `rateLimitRemaining` | Calls left in this period, from Trading 212's headers            |
+| `delayMs`, `waitMs`  | How long a retry or a rate-limit wait will take                  |
+| `code`, `apiCode`    | The error's stable code, and Trading 212's own code              |
+| `traceId`            | Trading 212's reference for the request, to quote to its support |
+| `hint`               | What to do about it                                              |
+
+## pino, bunyan and your own logger
+
+<Example name="logging-pino" />
+
+pino and bunyan take `(fields, message)`; `fieldsFirst()` swaps the arguments. Any other logger works if it has
+`debug`, `info`, `warn` and `error` methods that take `(message, fields)`:
+
+<Example name="logging-custom" />
+
+`silentLogger`, which ignores everything, is the default.
+
+## Logging errors
+
+```ts
+try {
+	await t212.orders.buy(order);
+} catch (error) {
+	if (isTrading212Error(error)) logger.error(error.message, error.toLog());
+	throw error;
+}
+```
+
+`toLog()` returns `name`, `message`, `code`, `hint`, `status`, `request`, `rateLimit`, `body`, `apiCode` and the
+cause's message: everything needed to debug, nothing secret. `console.error(error)` is safe too.
+
+## Hooks, for metrics and tracing
+
+<Example name="hooks-metrics" />
+
+| Hook              | Called with                                                           |
+| ----------------- | --------------------------------------------------------------------- |
+| `onRequest`       | `{ endpoint, method, path, attempt }`, before each attempt            |
+| `onResponse`      | The same, plus `{ status, durationMs, rateLimit }`, after each answer |
+| `onRetry`         | The same as `onRequest`, plus `{ delayMs, error }`, before a retry    |
+| `onRateLimitWait` | `{ endpoint, waitMs }`, before waiting for budget                     |
+
+Hook events contain no credentials, and an exception thrown in a hook is ignored.
+
+## What is redacted
+
+Before anything is logged, attached to an error or recorded by the testing kit, the client removes:
+
+- your API key, secret and their Base64 form, wherever they appear in a string;
+- any other `Basic …` credential;
+- values under keys such as `authorization`, `secret`, `password`, `apiKey`, `token` and `cookie`;
+- the query string of signed download links.
+
+<Aside>
+	Successful responses keep their text as Trading 212 sent it, apart from your own key and secret, so a fund named
+	"Basic Materials" is not mistaken for a credential. The test suite checks all of this with a server that echoes the
+	credentials back in every way it can.
+</Aside>

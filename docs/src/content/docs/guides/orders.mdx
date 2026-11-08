@@ -1,0 +1,127 @@
+---
+title: Orders
+description: Buying and selling, every order type, quantities, selling a whole position, dry runs, waiting for a fill and cancelling.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
+
+Every order needs a key with the `orders:execute` permission. On live, the client must also be created with
+`trading: "enabled"`; until then every order throws `TradingDisabledError` and nothing is sent.
+
+| Method                                                | Does                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------------- |
+| `orders.buy(order, options?)`                         | Buys. The quantity is positive; `type` defaults to `market` |
+| `orders.sell(order, options?)`                        | Sells. The quantity is positive and the sign is set for you |
+| `orders.sellAll(ticker)`                              | Sells everything you can of one holding, at market          |
+| `orders.market()`, `limit()`, `stop()`, `stopLimit()` | Send exactly what you give them; a negative quantity sells  |
+| `orders.waitFor(order)`                               | Waits until an order is filled, cancelled or rejected       |
+| `orders.list()`                                       | Orders that are still working                               |
+| `orders.get(id)`                                      | One working order                                           |
+| `orders.cancel(id)`                                   | Asks Trading 212 to cancel a working order                  |
+
+Full signatures are in the [method reference](/Trading212.js/reference/methods/#orders).
+
+## Place an order and wait for it
+
+<Example name="place-and-wait" />
+
+`buy()` and `sell()` take a **positive** quantity and set the direction themselves, so a stray minus sign cannot turn
+a sale into a purchase. `waitFor()` polls the order once a second, its rate limit. Once the order stops being pending,
+Trading 212 answers 404, so from then on `waitFor()` looks it up in the history instead, which needs the
+`history:orders` permission. `timeoutMs` bounds the whole wait; after it, `waitFor()` throws `TimeoutError`, and the
+order may still fill.
+
+## Order types
+
+<Example name="order-types" />
+
+| Type        | Fills                                                    | Needs                                     | Limit       |
+| ----------- | -------------------------------------------------------- | ----------------------------------------- | ----------- |
+| `market`    | now, at the next price                                   | nothing else                              | 50 / minute |
+| `limit`     | at `limitPrice` or better                                | `limitPrice`, `timeValidity`              | 1 / 2 s     |
+| `stop`      | as a market order once the price reaches `stopPrice`     | `stopPrice`, `timeValidity`               | 1 / 2 s     |
+| `stopLimit` | as a limit order at `limitPrice` once `stopPrice` is hit | `stopPrice`, `limitPrice`, `timeValidity` | 1 / 2 s     |
+
+`timeValidity` is `"DAY"`, which expires at midnight in the exchange's time zone, or `"GOOD_TILL_CANCEL"`, which
+stays until it fills or you cancel it. It is required on every non-market order, so an order never depends on a
+default. `extendedHours: true` lets a market order fill outside regular hours, and is allowed on market orders only.
+
+The lower-level `market()`, `limit()`, `stop()` and `stopLimit()` take the same fields without `type`, and send
+exactly what you give them, with the API's own convention that **a negative quantity sells**:
+
+```ts
+await t212.orders.market({ ticker: "AAPL_US_EQ", quantity: -2 }); // sells 2
+```
+
+## What is checked before sending
+
+Before any request, the client checks that:
+
+- the ticker has no spaces;
+- the quantity is a finite number, not zero, with at most **4 decimal places**;
+- prices are positive;
+- `timeValidity` is `"DAY"` or `"GOOD_TILL_CANCEL"`;
+- no field is given that the order type does not use.
+
+Every problem goes into one `ValidationError`, with `error.issues` listing them. Nothing is sent.
+
+## Quantities
+
+Orders take at most 4 decimal places; positions can hold 8. `truncateQuantity()` cuts towards zero using the number's
+exact digits, never floating-point arithmetic, so it can never round up past what you own:
+
+```ts
+import { isValidQuantity, truncateQuantity } from "@kkkermit/trading212.js";
+
+truncateQuantity(12.09032128); // 12.0903
+isValidQuantity(0.12345); // false: 5 decimal places
+```
+
+The API does not support placing an order by value, such as "£50 of Apple".
+
+## Sell a whole position
+
+<Example name="sell-all" />
+
+`sellAll()` reads the position's `quantityAvailableForTrading`, truncates it to 4 decimal places and sells that at
+market. Shares in pies or reserved by pending orders are left alone. It needs the `portfolio` permission as well as
+`orders:execute`.
+
+## Preview with a dry run
+
+<Example name="dry-run" />
+
+A dry run checks the order and builds the exact request, then returns it instead of sending it. It works on a live
+client with trading off, and `wouldSend` says whether this client would send it for real. TypeScript knows the
+difference: `{ dryRun: true }` returns a `DryRunResult`, and anything else an `Order`.
+
+## Working orders and cancelling
+
+<Example name="cancel-pending" />
+
+A successful `cancel()` means Trading 212 accepted the request; the order can still fill first. Cancelling an order
+that has already gone throws `NotFoundError`. At most 50 orders may be pending per ticker.
+
+## When an order fails
+
+| Error                          | Means                                                                               |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `ValidationError`              | Refused before sending; fix what `error.issues` lists                               |
+| `OrderRejectedError`           | Refused by Trading 212; `error.reason` is its code, such as `min-quantity-exceeded` |
+| `TradingDisabledError`         | Trading is off for this client, as it is on live by default; nothing was sent       |
+| `OrderOutcomeUnknownError`     | It may have gone through. Check `orders.list()` and `history.orders.list()` first   |
+| `NetworkError` (`sent: false`) | It never left your machine, so it is safe to send again                             |
+| `MissingScopeError`            | The key lacks `orders:execute`                                                      |
+
+<Aside type="caution" title="Never resend blindly">
+	An order is never retried automatically. When the outcome is unknown, look before you send it again; the [safe retry
+	recipe](/Trading212.js/recipes/#resend-an-order-safely) shows how.
+</Aside>
+
+A refusal says in plain words what the order broke, such as
+`a quantity of 0.1 is below the smallest Trading 212 accepts for this order, 1.33914872.`, and carries the limit as a
+number: `error.minQuantity`, `error.maxQuantity`, `error.maxDecimals` or `error.ownedQuantity`. Too small, too large,
+too many decimal places, selling more than you own and not enough cash have all been seen on demo; a closed market is
+recognised by its expected code. The [errors guide](/Trading212.js/guides/errors/#orderrejectederror) has the full
+table.

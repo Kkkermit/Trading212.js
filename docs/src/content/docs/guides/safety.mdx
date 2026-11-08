@@ -1,0 +1,51 @@
+---
+title: Safety and security
+description: The guards around real money, how your credentials are kept, and advice for running on live.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+## Around real money
+
+| Guard                                          | What it prevents                                          |
+| ---------------------------------------------- | --------------------------------------------------------- |
+| No default environment                         | Running against live because nobody said otherwise        |
+| Only Trading 212's demo host trades by default | A demo script, or one behind a proxy, placing real orders |
+| Orders are never retried                       | Buying twice because the first answer was slow            |
+| `OrderOutcomeUnknownError`                     | Treating "maybe executed" as "failed" and resending       |
+| `NetworkError` with `sent: false`              | Being unsure when a request certainly never left          |
+| `buy()` and `sell()` set the sign              | A stray minus sign turning a sale into a purchase         |
+| Validation before sending                      | Wasting rate limit on requests Trading 212 would refuse   |
+| `truncateQuantity()` and `sellAll()`           | Rounding up past what you own                             |
+| `dryRun`                                       | Not knowing exactly what will be sent                     |
+
+## Your credentials
+
+- The key and secret live in private class fields, not on any enumerable property, so `JSON.stringify`,
+  `console.log` and `util.inspect` of the client show only the environment.
+- Every log line, error, hook event and test recording is redacted; see
+  [Logging and hooks](/Trading212.js/guides/logging/#what-is-redacted).
+- Requests go only to `https://demo.trading212.com` or `https://live.trading212.com`, unless you set `baseUrl`,
+  which must be `https://` (or `http://localhost` for tests) and logs a warning.
+- Redirects are never followed, because following one would send your credentials wherever it pointed.
+- `nextPagePath` is followed only to the same endpoint on the same host.
+- Report downloads go to a signed link without your credentials.
+- The client refuses to run in a browser.
+- The doctor never prints the key or secret, and redacts its own output as well.
+
+## Advice
+
+- Make one key per program, with the fewest permissions it needs. A dashboard needs no `orders:execute`.
+- Restrict keys to fixed IP addresses where you can.
+- Keep demo and live keys apart; `T212_DEMO_*` and `T212_LIVE_*` help.
+- Preview live orders with `{ dryRun: true }` before you enable trading.
+
+<Aside type="danger" title="If a key leaks">
+	Delete it in the Trading 212 app straight away and make a new one. Anyone holding the key and secret can act with
+	every permission it has.
+</Aside>
+
+## Supply chain
+
+Zero runtime dependencies. Releases are published from GitHub Actions with npm provenance, so you can check a
+version was built from this repository. Development dependencies are pinned by the lockfile and audited in CI.

@@ -1,0 +1,70 @@
+---
+title: Instruments and market hours
+description: Finding Trading 212 tickers, caching the instrument list, and checking whether a market is open.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
+
+| Method                       | Returns                                               | Permission | Limit    |
+| ---------------------------- | ----------------------------------------------------- | ---------- | -------- |
+| `instruments.list()`         | Every instrument the account can trade                | `metadata` | 1 / 50 s |
+| `instruments.search(query)`  | The best matches, best first                          | `metadata` | cached   |
+| `instruments.resolve(query)` | Exactly one instrument, or `InstrumentNotFoundError`  | `metadata` | cached   |
+| `instruments.find(ticker)`   | The instrument with that exact ticker, or `undefined` | `metadata` | cached   |
+| `exchanges.list()`           | Every exchange and its working schedules              | `metadata` | 1 / 30 s |
+| `exchanges.status(ticker)`   | Whether its market is open, and when that changes     | `metadata` | cached   |
+
+## Tickers
+
+Tickers are Trading 212's own: `AAPL_US_EQ`, `VODl_EQ` (a lowercase `l` means London), `SXR8d_EQ` (`d` means
+Germany). Do not build them by hand; look them up.
+
+<Example name="find-instrument" />
+
+`search()` ranks by ticker, ISIN, short name and name, and takes `limit` (default 10), `type` (such as `STOCK` or
+`ETF`) and `currency` (such as `USD` or `GBX`). `resolve()` turns what a person would type into exactly one
+instrument: an exact ticker, ISIN, short name or full name, or a ticker without its suffix, such as `AAPL` for
+`AAPL_US_EQ`. If nothing fits, or several fit equally well, it throws `InstrumentNotFoundError` with `suggestions`
+and a hint on narrowing it down.
+
+Every instrument these methods return has a `ticker`; entries without one cannot be traded and are left out.
+
+## The cached list
+
+The full list is about 5 MB and limited to one request every 50 seconds, so it is cached (one hour by default,
+`metadataTtlMs`) and callers at the same moment share one download. Trading 212 refreshes it every 10 minutes. Pass
+`{ refresh: true }` to fetch it afresh. `search()`, `resolve()` and `find()` read the cached list, so they cost no
+request after the first.
+
+To share the cache between processes, pass a `cache` with `get`, `set` and optionally `delete`. Each may return a
+promise, and `get` returning `undefined` or `null` counts as a miss:
+
+<Example name="redis-cache" />
+
+A cache that fails is logged at `warn` and bypassed, so a broken Redis costs a download rather than the call. A
+cached value that is not a list is treated the same way.
+
+## Market hours
+
+<Example name="market-hours" />
+
+`status()` returns:
+
+| Field           | Holds                                                                                |
+| --------------- | ------------------------------------------------------------------------------------ |
+| `session`       | `"regular"`, `"preMarket"`, `"afterHours"`, `"overnight"`, `"closed"` or `"unknown"` |
+| `open`          | `true` during regular trading hours                                                  |
+| `extendedHours` | `true` during a pre-market, after-hours or overnight session                         |
+| `since`         | When the current session began                                                       |
+| `next`          | `{ event, at }`: the next scheduled change, such as the close                        |
+| `nextOpen`      | When regular trading next starts, including the end of a midday break                |
+| `exchange`      | The exchange's name                                                                  |
+
+It reads Trading 212's working schedules, which cover a limited window ahead, so `nextOpen` can be `undefined`. Pass
+a `Date` as the second argument to ask about another moment. `sessionAt(timeEvents, date)` is the same calculation as
+a pure function, for schedules you already have.
+
+<Aside>
+	Treat market hours as guidance. Trading 212 makes the final decision, and refuses an order with `market-closed`.
+</Aside>

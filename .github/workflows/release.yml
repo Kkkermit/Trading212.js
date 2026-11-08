@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Version or publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      # npm trusted publishing (OIDC) with provenance, so no npm token is stored.
+      id-token: write
+      # The GitHub Packages copy is published with the workflow's own token.
+      packages: write
+    steps:
+      # Changesets pushes the version branch, so this checkout keeps its credentials.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install --global npm@11
+      - run: npm ci
+      - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version-script: npx changeset version
+          publish-script: npm run release
+          commit-message: "chore: Release a new version"
+          pr-title: "chore: Release a new version"
+      # GitHub Packages gets a copy of each version already on npm, so the package shows on the repository page.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          registry-url: https://npm.pkg.github.com
+      - name: Mirror the release to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if ! curl --silent --fail "https://registry.npmjs.org/${name/\//%2f}/$version" > /dev/null; then
+            echo "$name@$version is not on npm, so there is nothing to mirror."
+            exit 0
+          fi
+          if npm view "$name@$version" version > /dev/null 2>&1; then
+            echo "$name@$version is already on GitHub Packages."
+            exit 0
+          fi
+          npm run build
+          npm publish --provenance=false

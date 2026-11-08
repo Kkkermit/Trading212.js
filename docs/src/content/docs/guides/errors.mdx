@@ -1,0 +1,198 @@
+---
+title: Errors
+description: Every error the library throws, what causes it, and how to fix it.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
+
+Every error the library throws extends `Trading212Error` and carries:
+
+| Field          | Holds                                                            |
+| -------------- | ---------------------------------------------------------------- |
+| `code`         | A stable name, such as `missing_scope`, for `switch` statements  |
+| `hint`         | What to do about it, in plain English                            |
+| `status`       | The HTTP status, if there was a response                         |
+| `request`      | `{ method, path, endpoint }`, never headers or credentials       |
+| `rateLimit`    | What the rate-limit headers said                                 |
+| `body`         | The response body, parsed and redacted                           |
+| `apiCode`      | Trading 212's own code, such as `min-quantity-exceeded`          |
+| `traceId`      | Trading 212's reference for the request, to quote to its support |
+| `resumeCursor` | On a failed history iteration, where to carry on                 |
+| `toLog()`      | All of the above as a plain object, safe to hand to any logger   |
+
+`instanceof` works on every class, even when ESM and CommonJS copies of the package are both loaded.
+`isTrading212Error(value)` checks for any of them.
+
+<Example name="handle-errors" />
+
+Test for a class with `instanceof`, or switch on `error.code`, which never changes between versions:
+
+| `code`                  | Class                      |
+| ----------------------- | -------------------------- |
+| `configuration`         | `ConfigurationError`       |
+| `validation`            | `ValidationError`          |
+| `trading_disabled`      | `TradingDisabledError`     |
+| `instrument_not_found`  | `InstrumentNotFoundError`  |
+| `authentication`        | `AuthenticationError`      |
+| `missing_scope`         | `MissingScopeError`        |
+| `not_available_in_demo` | `NotAvailableInDemoError`  |
+| `permission`            | `PermissionError`          |
+| `order_rejected`        | `OrderRejectedError`       |
+| `not_found`             | `NotFoundError`            |
+| `rate_limited`          | `RateLimitError`           |
+| `timeout`               | `TimeoutError`             |
+| `outcome_unknown`       | `OrderOutcomeUnknownError` |
+| `network`               | `NetworkError`             |
+| `server`                | `ServerError`              |
+| `http_error`            | `HttpError`                |
+| `unexpected_response`   | `UnexpectedResponseError`  |
+
+`OrderRejectedError` extends `ValidationError`, and `InstrumentNotFoundError` extends `NotFoundError`, so a check for
+the parent catches both. `toLog()` (and `JSON.stringify(error)`) gives every field with a value, plus the cause's
+message, with credentials removed.
+
+## Before anything is sent
+
+### `ConfigurationError`
+
+Code `configuration`. The options, or the environment variables behind `fromEnv()`, are wrong. `error.field` names
+the option. Common causes: no `environment`; whitespace around the key; the key pasted into `apiSecret`; `prod` or
+`paper` instead of `live` or `demo`, which the hint corrects.
+
+### `ValidationError`
+
+Code `validation`. The request was invalid. When the client caught it before sending, `error.issues` lists every
+field at fault. Trading 212 refusing a request with 400 gives the same class.
+
+### `TradingDisabledError`
+
+Code `trading_disabled`. An order, cancellation or pie change on a client with trading off, which is the default on
+live and behind a custom `baseUrl`. Nothing was sent. Pass `trading: "enabled"`, or `{ dryRun: true }` to preview.
+
+### `InstrumentNotFoundError`
+
+Code `instrument_not_found`. `instruments.resolve()` found nothing, or several equally good matches.
+`error.suggestions` lists the closest.
+
+## Refused by Trading 212
+
+### `AuthenticationError`
+
+Code `authentication`, status 401. Trading 212 refused the key and secret. Check both were copied exactly. **A key
+works in one environment only**: a key made in practice mode is refused by live, and the other way round.
+`error.environment` says which this client used.
+
+### `MissingScopeError`
+
+Code `missing_scope`, status 403. The key exists but lacks a permission; `error.scope` names it, such as
+`orders:execute`. Make a key with it ticked. `npx @kkkermit/trading212.js doctor` shows every missing permission at
+once.
+
+### `NotAvailableInDemoError`
+
+Code `not_available_in_demo`, status 403. The feature only exists on live. CSV exports are one: demo refuses
+`reports.list()` this way, confirmed by the contract tests.
+
+### `PermissionError`
+
+Code `permission`, status 403. Any other refusal. If the key is restricted to IP addresses, check this machine's
+public address is on its list.
+
+### `OrderRejectedError`
+
+Code `order_rejected`, status 400. Trading 212 refused an order; nothing was traded. `error.reason` is Trading 212's
+code for why. Its own words are terse ("invalid quantity precision 4" means at most 4 decimal places are allowed), so
+the client says it again in `error.message`, using what you sent, and puts the limit you broke on the error as a
+number your code can use. Each message starts with the request, such as
+`POST /api/v0/equity/orders/limit was refused:`, and ends like this:
+
+- `min-quantity-exceeded`, with `error.minQuantity`: _a quantity of 0.1 is below the smallest Trading 212 accepts for
+  this order, 1.33914872._
+- `max-quantity-exceeded`, with `error.maxQuantity`: _a quantity of 1000000 is above the largest Trading 212 accepts in
+  one order, 32880._
+- `quantity-precision-mismatch`, with `error.maxDecimals`: _a quantity of 5.12345 has more decimal places than the 4
+  Trading 212 allows._
+- `selling-equity-not-owned`, with `error.ownedQuantity`: _it sells 1000 AAPL_US_EQ, but the account owns 0._
+- `insufficient-free-for-stocks-buy`: _there is not enough free cash to buy 30000 AAPL_US_EQ at 6 each._
+- `market-closed`: _the market for AAPL_US_EQ is closed._
+- Anything else: Trading 212's own code and words, as they came.
+
+Each one also has its own `hint`. Every example above is what demo really answered, except `market-closed`, which
+has not been seen yet and is matched by its expected code. A number is there only when Trading 212's words gave it,
+and Trading 212's original body is always in `error.body`.
+
+<Example name="order-refused" />
+
+A malformed order, which Trading 212 answers with `invalid-request` ("Invalid payload"), is a plain `ValidationError`
+instead: the request needs fixing, not the order. The client checks every field before sending, so if one of its own
+methods meets this, Trading 212 may have changed its rules; the hint asks you to open an issue with `error.traceId`.
+
+### `NotFoundError`
+
+Code `not_found`, status 404. For `orders.get()` this usually means the order has filled or been cancelled: look in
+`history.orders`.
+
+### `RateLimitError`
+
+Code `rate_limited`, status 429. Out of budget; `error.retryAfterMs` and `error.resetAt` say when it resets. Reads
+retry by themselves when the wait is short. Also thrown before sending when the client would have to wait longer than
+`maxRateLimitWaitMs`.
+
+### `ServerError`, `HttpError` and `UnexpectedResponseError`
+
+Codes `server` (5xx), `http_error` (any other status) and `unexpected_response` (a response the client could not
+read, including a redirect it refused to follow with your credentials).
+
+## When the outcome is unclear
+
+### `OrderOutcomeUnknownError`
+
+Code `outcome_unknown`. **An order, cancellation or pie change may or may not have happened**: it timed out, the
+connection dropped, the call was aborted after sending, Trading 212 answered 5xx or with a redirect, or it answered
+with a success the client could not read. `error.sent` holds what was sent.
+
+<Aside type="danger" title="Never resend blindly">
+	Check `orders.list()` and `history.orders.list()` before trying again. The first attempt may have filled.
+</Aside>
+
+### `TimeoutError`
+
+Code `timeout`, status 408 or the client's own `timeoutMs`. No answer in time. Reads are retried; this one ran out of
+attempts. A trade that times out is an `OrderOutcomeUnknownError` instead.
+
+### `NetworkError`
+
+Code `network`. The connection failed. `error.sent` is `false` when it failed before reaching Trading 212 (DNS, a
+refused connection, TLS), which makes even an order safe to try again.
+
+## Error bodies
+
+Trading 212's spec documents no error body. What demo really sends is recorded in
+[`fixtures/errors.json`](https://github.com/Kkkermit/Trading212.js/blob/main/fixtures/errors.json), and every
+response there is replayed through the client by the tests:
+
+- **Most errors are problem details**, as JSON:
+
+  ```json
+  {
+  	"type": "/api-errors/entity-not-found",
+  	"title": "Requested entity not found",
+  	"status": 404,
+  	"detail": "Order not found",
+  	"traceId": "002fc4767c1b3a9e8b0ba5237bc49a2e"
+  }
+  ```
+
+  The last part of `type` becomes `apiCode`, `detail` ends the message, and `traceId` is kept on the error.
+
+- **A refused key (401) has an empty body**, so the error comes from the status alone.
+- **A refusal with nothing more to say leaves out `detail`**, as demo's refusal of CSV exports does; `title` is then
+  the explanation.
+- **A 429 has an older shape**, `{ code: "BusinessException", context: { type: "TooManyRequests" }, errorMessage }`,
+  sent as plain text. `apiCode` is then `TooManyRequests`, from `context.type`, rather than the vague
+  `BusinessException`.
+
+`parseErrorBody(text)` returns `{ apiCode, message, traceId }` from any of these, and is exported for your own use. It
+also reads `{ code, clarification }`, `{ code, message }` and plain text, so an unexpected shape still gives a useful
+error. Bodies are redacted before they are kept.

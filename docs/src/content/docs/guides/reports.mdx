@@ -1,0 +1,59 @@
+---
+title: CSV reports
+description: Exporting your history as CSV in one call or step by step, and parsing it.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
+
+| Method                     | Does                                                  | Limit    |
+| -------------------------- | ----------------------------------------------------- | -------- |
+| `reports.export(request)`  | Requests a report, waits for it and downloads the CSV | combined |
+| `reports.request(request)` | Asks Trading 212 to build a report; returns its ID    | 1 / 30 s |
+| `reports.list()`           | Every report you have asked for, with its status      | 1 / min  |
+| `reports.waitFor(id)`      | Checks a report until it is finished                  | 1 / min  |
+| `reports.download(report)` | Downloads a finished report's CSV text                | none     |
+
+The spec names no permission for these endpoints.
+
+## Export and parse
+
+<Example name="export-csv" />
+
+`export()` takes at least a minute, because listing reports is limited to once a minute. Its `timeoutMs` (default
+10 minutes) bounds the wait; the request and the download keep their own timeouts.
+
+A request takes `from` and `to` (a `Date` or a date string) and `include`, with `dividends`, `interest`, `orders` and
+`transactions` all included unless you say otherwise.
+
+## Step by step
+
+```ts
+const id = await t212.reports.request({ from: "2026-01-01", to: "2026-06-30" });
+const ready = await t212.reports.waitFor(id, { onStatus: (report) => console.log(report.status) });
+const text = await t212.reports.download(ready);
+```
+
+`waitFor()` takes `timeoutMs`, `intervalMs` (default 60 s) and `onStatus`, called on each check. It throws if the
+report failed or was cancelled. The download goes to a signed link **without** your credentials, and links expire,
+so fetch a fresh one with `reports.list()` if a download is refused.
+
+<Aside type="caution" title="Demo">
+	Demo does not offer CSV exports. It refuses them with a 403, which the client turns into `NotAvailableInDemoError`;
+	the contract tests confirm this against the real demo API. A refused call still counts against the endpoint's rate
+	limit, so a second one inside the minute is answered with a 429 instead.
+</Aside>
+
+## Parsing the CSV
+
+The parser lives in its own entry point, `@kkkermit/trading212.js/csv`, so the client stays small:
+
+| Function             | Returns                                                                         |
+| -------------------- | ------------------------------------------------------------------------------- |
+| `parseCsv(text)`     | One object per line, keyed by column name; every value a string                 |
+| `parseCsvRows(text)` | Every line as an array of strings, the header included                          |
+| `csvNumber(value)`   | A number from `1234.56`, `1,234.56` or `-0.5`, or `undefined` for anything else |
+
+Both parsers handle quoted fields, doubled quotes, commas and line breaks inside quotes, either line ending, and a
+leading byte-order mark. `csvNumber()` refuses a decimal comma such as `1,5`, because Trading 212 writes decimals with
+a full stop.
