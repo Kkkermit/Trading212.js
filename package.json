@@ -99,6 +99,7 @@
 		"secrets": "secretlint \"**/*\"",
 		"changeset": "changeset",
 		"release": "npm run check && changeset publish",
+		"prepack": "npm run build",
 		"prepare": "husky",
 		"smoke": "node scripts/smoke.mjs && node scripts/smoke.cjs",
 		"example": "tsx --tsconfig examples/tsconfig.json",
