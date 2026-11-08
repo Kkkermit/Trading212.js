@@ -34,14 +34,17 @@ to run again.
   publisher on npmjs.com (the package's **Settings > Trusted publishing**) against this table; every field is
   case-sensitive:
 
-  | Field             | Value           |
-  | ----------------- | --------------- |
-  | Organisation/user | `Kkkermit`      |
-  | Repository        | `Trading212.js` |
-  | Workflow filename | `release.yml`   |
-  | Environment       | empty           |
+  | Field             | Value                                                |
+  | ----------------- | ---------------------------------------------------- |
+  | Organisation/user | `Kkkermit`                                           |
+  | Repository        | `Trading212.js`                                      |
+  | Workflow filename | `release.yml`                                        |
+  | Environment       | empty                                                |
+  | Allowed actions   | _Allow npm publish_ ticked, _Allow npm dist-tag_ not |
 
-  It also fails if the npm in the workflow is older than 11.5.1, which the workflow prevents by installing npm 11.
+  _Allow npm publish_ is what lets the workflow publish on its own. Without it, npm only lets a trusted publisher stage
+  a version for you to approve on npmjs.com, which this workflow does not do. It also fails if the npm in the workflow
+  is older than 11.5.1, which the workflow prevents by installing npm 11.
 
 - **Provenance fails with "repository visibility: private".** The repository must be public.
 - **The GitHub Packages step fails with 403.** The job needs `packages: write`, which `release.yml` grants, and the
