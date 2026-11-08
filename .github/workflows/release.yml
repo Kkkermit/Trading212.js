@@ -56,5 +56,4 @@ jobs:
             echo "$name@$version is already on GitHub Packages."
             exit 0
           fi
-          npm run build
           npm publish --provenance=false

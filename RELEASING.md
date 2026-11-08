@@ -46,7 +46,8 @@ first release) and writes `CHANGELOG.md`. **Do not merge it yet.**
 
    `--provenance=false` is needed only here: provenance can be generated in GitHub Actions, not on a laptop, and a
    command-line flag overrides the `provenance: true` in `package.json`. The package is still public, from
-   `publishConfig`.
+   `publishConfig`. `npm publish` builds `dist/` first (the `prepack` script), so the package always holds the code;
+   check that npm's list of tarball contents includes `dist/` before you confirm.
 
 2. On [npmjs.com](https://www.npmjs.com), open the package's **Settings**, and under **Trusted publishing** add a
    GitHub Actions publisher:
@@ -103,5 +104,9 @@ cd ../some-project && npm install ../Trading212.js/kkkermit-trading212.js-0.1.0.
 - **The GitHub Packages step fails with 403.** The job needs `packages: write`, which `release.yml` grants, and the
   package must be linked to this repository. A package first published from somewhere else needs this repository
   added under **Package settings > Manage Actions access**.
+- **A version went out without its code.** npm's tarball list shows only `README.md`, `LICENSE`, `CHANGELOG.md`
+  and `package.json`, and warns "No bin file found at dist/cli.js". This is what happened to 0.1.0, from a checkout
+  with no `dist/`; the `prepack` script now builds it on every publish. Release the next patch version, then
+  deprecate the empty one as below.
 - **A bad version went out.** Run `npm deprecate @kkkermit/trading212.js@<version> "<why, and what to use>"` and
   release a fix. npm only allows unpublishing within 72 hours, and a version number can never be reused.
