@@ -38,7 +38,7 @@ writeFileSync(
 | Fetched | ${date} |
 
 **To refresh:** run \`npm run spec:fetch\`, then \`npm run generate\`, and review the diff. The weekly \`spec-drift\`
-workflow does the same and opens an issue when anything changed. Check \`overrides.json\`: the generator warns about
+workflow does the same and opens a pull request when anything changed. Check \`overrides.json\`: the generator warns about
 any entry the spec has caught up with.
 `,
 );

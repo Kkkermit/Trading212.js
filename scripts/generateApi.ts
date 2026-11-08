@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { format, resolveConfig } from "prettier";
 
 interface Schema {
-	type?: string;
+	type?: string | string[];
 	format?: string;
 	description?: string;
 	enum?: string[];
@@ -90,6 +90,11 @@ function docComment(text: string | undefined, indent = ""): string {
 function typeOf(schema: Schema): string {
 	if (schema.$ref) return schema.$ref.split("/").pop() ?? "unknown";
 	if (schema.enum) return `${schema.enum.map((value) => JSON.stringify(value)).join(" | ")} | (string & {})`;
+	// The spec has begun to write a nullable type as a list, such as ["number", "null"], as OpenAPI 3.1 does.
+	if (Array.isArray(schema.type)) {
+		const types = schema.type.map((type) => (type === "null" ? "null" : typeOf({ ...schema, type })));
+		return [...new Set(types)].join(" | ");
+	}
 	switch (schema.type) {
 		case "string":
 			return "string";
@@ -110,13 +115,18 @@ function typeOf(schema: Schema): string {
 	}
 }
 
+/** Every field may be null, so a type that already allows it is not given a second `null`. */
+function orNull(type: string): string {
+	return type.split(" | ").includes("null") ? type : `${type} | null`;
+}
+
 function wrapArrayItem(type: string): string {
 	return type.includes("|") ? `(${type})` : type;
 }
 
 function inlineObject(schema: Schema): string {
 	return `{ ${Object.entries(schema.properties ?? {})
-		.map(([name, property]) => `${name}?: ${typeOf(property)} | null;`)
+		.map(([name, property]) => `${name}?: ${orNull(typeOf(property))};`)
 		.join(" ")} }`;
 }
 
@@ -139,7 +149,7 @@ function generateTypes(spec: Spec): string {
 		out += `export interface ${name} {\n`;
 		for (const [property, propertySchema] of Object.entries(schema.properties ?? {})) {
 			out += docComment(propertyNote(propertySchema), "\t");
-			out += `\t${property}?: ${typeOf(propertySchema)} | null;\n`;
+			out += `\t${property}?: ${orNull(typeOf(propertySchema))};\n`;
 		}
 		out += "}\n\n";
 	}

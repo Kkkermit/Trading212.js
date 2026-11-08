@@ -1,5 +1,7 @@
 name: Spec drift
 
+# Fetches Trading 212's published spec and, when it differs from openapi/, opens or updates a pull request with the
+# new spec, the regenerated types and a changeset, so accepting a change is a review and a merge.
 on:
   schedule:
     # Off the hour: scheduled runs at :00 are the first to be delayed or dropped when GitHub is busy.
@@ -8,16 +10,19 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   drift:
     name: Compare with Trading 212's published spec
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
+      # Always the default branch, so the proposal never carries anything else, however the run was started.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
@@ -25,25 +30,59 @@ jobs:
       - run: npm ci
       - run: npm run spec:fetch
       - run: npm run generate
-      - name: Open an issue when anything changed
+
+      - name: Propose the new spec as a pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
         run: |
-          if git diff --quiet -- openapi/trading212.json src; then
+          if git diff --quiet -- openapi src; then
             echo "The spec has not changed."
             exit 0
           fi
-          title="Trading 212 changed its API spec"
-          if [ -n "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')" ]; then
-            echo "An issue is already open."
-            exit 0
-          fi
+          git diff -- openapi/trading212.json | head -c 20000
+          if npm run check > check.log 2>&1; then checks="passes"; else checks="fails"; fi
+
+          printf -- '---\n"@kkkermit/trading212.js": patch\n---\n\nUpdated the API types to the latest Trading 212 spec.\n' \
+            > .changeset/trading212-spec.md
           {
-            echo "The weekly check found changes in Trading 212's published spec. Run \`npm run spec:fetch\` and \`npm run generate\`, then review:"
+            echo "Trading 212's published spec has changed. This pull request holds the new spec, the regenerated types"
+            echo "and a changeset. Read the changes below before merging."
+            echo
+            echo "**\`npm run check\` $checks on these changes.** GitHub does not run CI on a pull request a workflow"
+            echo "opened, so this result is the check."
+            if [ "$checks" = "fails" ]; then
+              echo
+              echo '```'
+              grep -v "^\s*$" check.log | tail -n 40
+              echo '```'
+            fi
+            echo
+            echo "### The spec"
             echo
             echo '```diff'
-            git diff -- src/http/endpoints.generated.ts src/types/api.generated.ts | head -c 60000
+            git diff -- openapi/trading212.json | head -c 25000
             echo '```'
-          } > drift.md
-          gh issue create --title "$title" --body-file drift.md
+            echo
+            echo "### The generated code"
+            echo
+            echo '```diff'
+            git diff -- src | head -c 25000
+            echo '```'
+          } > "$RUNNER_TEMP/body.md"
+
+          branch=spec/trading212-update
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add openapi src .changeset/trading212-spec.md
+          # The repository's hooks would re-run checks this step has already run and reported.
+          git commit --quiet --no-verify -m "chore: Update to the latest Trading 212 API spec"
+          git push --force --quiet origin "$branch"
+
+          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')" ]; then
+            gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --base "$BASE" --head "$branch" --title "chore: Update to the latest Trading 212 API spec" \
+              --body-file "$RUNNER_TEMP/body.md"
+          fi
