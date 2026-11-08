@@ -15,7 +15,11 @@ describe("the published package", () => {
 		expect(pkg.scripts.prepack).toBe("npm run build");
 	});
 
-	it("ships the folder its command lives in", () => {
-		for (const path of Object.values(pkg.bin)) expect(pkg.files).toContain(path.replace(/^\.\//, "").split("/")[0]);
+	/** npm rewrites "./dist/cli.js" when publishing, and warns that the command was removed when it was not. */
+	it("names its command's file the way npm writes it, inside a folder it ships", () => {
+		for (const path of Object.values(pkg.bin)) {
+			expect(path).not.toMatch(/^\.\//);
+			expect(pkg.files).toContain(path.split("/")[0]);
+		}
 	});
 });
