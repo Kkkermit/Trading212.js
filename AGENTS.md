@@ -10,21 +10,21 @@ real money, so **safety beats convenience in every trade-off**.
 
 ## Commands
 
-| Command                    | Does                                                                                                  |
-| -------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `npm ci`                   | Install. Always `ci`, unless you are changing dependencies                                            |
-| **`npm run check`**        | Typecheck, lint, format, tests with coverage, build, package checks and size. Run before every commit |
-| `npm test`                 | Vitest with coverage (90% on every measure)                                                           |
-| `npm run generate`         | Regenerate `src/types/api.generated.ts` and `src/http/endpoints.generated.ts`                         |
-| `npm run generate:check`   | Fail if the generated files are stale                                                                 |
-| `npm run spec:fetch`       | Download the official spec into `openapi/`                                                            |
-| `npm run test:demo`        | Contract tests against the **demo** API; needs `T212_DEMO_API_KEY` / `_SECRET`                        |
-| `npm run fixtures:capture` | Record real demo error bodies into `fixtures/errors.json`                                             |
-| `npm run example <file>`   | Run an example against the source, such as `examples/try-it-offline.ts`                               |
-| `npm run docs:dev`         | Preview the documentation site; installs its dependencies on the first run                            |
-| `npm run smoke`            | Run the built package in Node, as ESM and CommonJS; CI also runs it in Bun and Deno                   |
-| `npm run secrets`          | Scan the repository for committed secrets                                                             |
-| `npm run changeset`        | Describe a user-facing change for the changelog                                                       |
+| Command                    | Does                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `npm ci`                   | Install. Always `ci`, unless you are changing dependencies                                             |
+| **`npm run check`**        | Typecheck, lint, format, tests with coverage, build, package checks and size. Run before every commit  |
+| `npm test`                 | Vitest with coverage (90% on every measure)                                                            |
+| `npm run generate`         | Regenerate `src/types/api.generated.ts` and `src/http/endpoints.generated.ts`                          |
+| `npm run generate:check`   | Fail if the generated files are stale                                                                  |
+| `npm run spec:fetch`       | Download the official spec into `openapi/`                                                             |
+| `npm run test:demo`        | Contract tests against the **demo** API; needs `T212_DEMO_API_KEY` / `_SECRET`, in the shell or `.env` |
+| `npm run fixtures:capture` | Record real demo error bodies into `fixtures/errors.json`; the same two variables                      |
+| `npm run example <file>`   | Run an example against the source, such as `examples/try-it-offline.ts`                                |
+| `npm run docs:dev`         | Preview the documentation site; installs its dependencies on the first run                             |
+| `npm run smoke`            | Run the built package in Node, as ESM and CommonJS; CI also runs it in Bun and Deno                    |
+| `npm run secrets`          | Scan the repository for committed secrets                                                              |
+| `npm run changeset`        | Describe a user-facing change for the changelog                                                        |
 
 ## Layout
 

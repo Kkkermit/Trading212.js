@@ -1,5 +1,5 @@
-// Runs against the real demo API with `npm run test:demo`. It needs T212_DEMO_API_KEY and T212_DEMO_API_SECRET,
-// is hard-wired to demo, and skips itself without them. It never touches live.
+// Runs against the real demo API with `npm run test:demo`. It needs T212_DEMO_API_KEY and T212_DEMO_API_SECRET, from
+// the shell or .env, is hard-wired to demo, and skips itself without them. It never touches live.
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { NotAvailableInDemoError, NotFoundError, OrderRejectedError, Trading212 } from "../../src/index";

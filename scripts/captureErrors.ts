@@ -2,20 +2,27 @@
 //
 //   T212_DEMO_API_KEY=... T212_DEMO_API_SECRET=... npm run fixtures:capture
 //
+// The two variables can also go in .env; anything already set in the shell wins.
+//
 // Optionally set T212_NARROW_API_KEY / T212_NARROW_API_SECRET to a demo key with only the "account" permission, to
 // capture a missing-scope error too. Output goes to fixtures/errors.json with every credential redacted; read it
 // before committing it.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { basicAuthorization } from "../src/config";
 import { BASE_URLS } from "../src/environment";
 import { createRedactor } from "../src/logging/redact";
 
+const envFile = resolve(import.meta.dirname, "../.env");
+if (existsSync(envFile)) process.loadEnvFile(envFile);
+
 const key = process.env.T212_DEMO_API_KEY;
 const secret = process.env.T212_DEMO_API_SECRET;
 if (!key || !secret) {
-	console.error("Set T212_DEMO_API_KEY and T212_DEMO_API_SECRET. This script only ever talks to demo.");
+	console.error(
+		"Set T212_DEMO_API_KEY and T212_DEMO_API_SECRET, in your shell or in .env. This script only ever talks to demo.",
+	);
 	process.exit(1);
 }
 const narrowKey = process.env.T212_NARROW_API_KEY;

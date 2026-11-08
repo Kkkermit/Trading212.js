@@ -21,4 +21,4 @@ cd ../your-project && npm install ../trading212.js/kkkermit-trading212.js-0.0.0.
 Maintainers: [RELEASING.md](RELEASING.md) covers publishing to npm and deploying the docs.
 
 Never use a live API key while developing. Contract tests run against demo only: set `T212_DEMO_API_KEY` and
-`T212_DEMO_API_SECRET` and run `npm run test:demo`.
+`T212_DEMO_API_SECRET`, in your shell or in `.env`, and run `npm run test:demo`.
