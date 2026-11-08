@@ -1,6 +1,6 @@
 {
 	"name": "@kkkermit/trading212.js",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Unofficial, zero-dependency TypeScript client for the Trading 212 Public API: typed, rate-limit aware, safe around live money, with errors that tell you how to fix them.",
 	"keywords": [
 		"trading212",

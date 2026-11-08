@@ -1,5 +1,11 @@
 # @kkkermit/trading212.js
 
+## 0.1.1
+
+### Patch Changes
+
+- ee3d9f7: Published the library's code, which 0.1.0 was released without. Install 0.1.1 or later.
+
 ## 0.1.0
 
 ### Minor Changes
