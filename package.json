@@ -24,7 +24,7 @@
 	"bugs": {
 		"url": "https://github.com/Kkkermit/Trading212.js/issues"
 	},
-	"homepage": "https://github.com/Kkkermit/Trading212.js#readme",
+	"homepage": "https://kkkermit.github.io/Trading212.js/",
 	"type": "module",
 	"sideEffects": false,
 	"engines": {

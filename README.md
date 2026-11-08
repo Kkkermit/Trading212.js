@@ -2,11 +2,16 @@
 
 [![CI](https://github.com/Kkkermit/Trading212.js/actions/workflows/ci.yml/badge.svg)](https://github.com/Kkkermit/Trading212.js/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@kkkermit/trading212.js)](https://www.npmjs.com/package/@kkkermit/trading212.js)
+[![Downloads a month](https://img.shields.io/npm/dm/@kkkermit/trading212.js)](https://www.npmjs.com/package/@kkkermit/trading212.js)
+[![Total downloads](https://img.shields.io/npm/dt/@kkkermit/trading212.js?label=total%20downloads)](https://www.npmjs.com/package/@kkkermit/trading212.js)
+[![Docs](https://img.shields.io/badge/docs-kkkermit.github.io-blue)](https://kkkermit.github.io/Trading212.js/)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 ![Node 22+](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
 
 A TypeScript client for the [Trading 212 Public API](https://docs.trading212.com/api) that is safe around real
 money, tells you how to fix what went wrong, and comes with a fake Trading 212 to test your code against.
+
+**Documentation: [kkkermit.github.io/Trading212.js](https://kkkermit.github.io/Trading212.js/)**
 
 ```ts
 import { Trading212 } from "@kkkermit/trading212.js";
