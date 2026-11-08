@@ -1,5 +1,11 @@
 # @kkkermit/trading212.js
 
+## 0.1.2
+
+### Patch Changes
+
+- 5d8b00f: The npm page now links to the documentation site, and the README shows how often the package is downloaded.
+
 ## 0.1.1
 
 ### Patch Changes
