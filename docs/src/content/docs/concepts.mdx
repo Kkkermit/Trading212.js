@@ -49,8 +49,9 @@ const summary = await t212.account.summary(); // waits, then gives you the summa
 console.log(summary.totalValue);
 ```
 
-`await` works at the top level of an ES module (a `.mjs` file, or a project with `"type": "module"`) and inside any
-`async function`. In CommonJS, wrap your code in an `async function main() { … }` and call `main()`.
+`await` works inside any `async function`, and at the top level of an ES module, such as a `.mts` file. The
+JavaScript in these docs is CommonJS, which has no top-level `await`, so each example puts its code in an
+`async function main() { … }` and calls `main()`; save it as a `.cjs` file and it runs in any project.
 
 ## Errors are classes
 

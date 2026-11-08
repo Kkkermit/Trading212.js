@@ -7,7 +7,8 @@ import { Aside } from "@astrojs/starlight/components";
 import Example from "../../../components/Example.astro";
 
 The testing kit lives in its own entry point, `@kkkermit/trading212.js/testing`, so it never ends up in your
-production bundle. It works with any test runner; the examples use [Vitest](https://vitest.dev).
+production bundle. It works with any test runner; the examples use Node's built-in one, so they need nothing installed, and
+[Vitest](https://vitest.dev) or Jest work the same way with their own `describe`, `it` and assertions.
 
 ## The fake Trading 212
 
@@ -16,6 +17,8 @@ runs exactly as it would against the API: validation, errors, pagination, the li
 network and no key, and rate limiting is off, so tests run instantly.
 
 <Example name="testing-fake" file="take-profit.test" />
+
+Run it with `node --test take-profit.test.cjs`, or `npx tsx --test take-profit.test.mts`.
 
 What it does:
 

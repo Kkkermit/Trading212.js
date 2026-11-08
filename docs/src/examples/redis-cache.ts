@@ -8,6 +8,7 @@ interface RedisLike {
 }
 declare const redis: RedisLike;
 
+// redis is your connected node-redis or ioredis client.
 const redisCache: CacheStore = {
 	// A null from Redis counts as a miss.
 	get: async (key) => {
