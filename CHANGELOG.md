@@ -1,5 +1,11 @@
 # @kkkermit/trading212.js
 
+## 0.1.3
+
+### Patch Changes
+
+- e1c9cee: Updated the API types to the latest Trading 212 spec.
+
 ## 0.1.2
 
 ### Patch Changes
