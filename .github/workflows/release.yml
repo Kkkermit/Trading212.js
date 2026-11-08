@@ -1,8 +1,12 @@
 name: Release
 
+# On every push to main: open or update the release pull request while changesets are waiting, or publish the
+# version in package.json once that pull request has been merged. Run it by hand from the Actions tab to retry a
+# publish that failed, without a new commit.
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency: release
 
@@ -21,7 +25,7 @@ jobs:
       # The GitHub Packages copy is published with the workflow's own token.
       packages: write
     steps:
-      # Changesets pushes the version branch, so this checkout keeps its credentials.
+      # Changesets pushes the version branch, and this job pushes the tag, so the checkout keeps its credentials.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -31,18 +35,55 @@ jobs:
       # Trusted publishing needs npm 11.5.1 or later.
       - run: npm install --global npm@11
       - run: npm ci
+
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        id: changesets
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version-script: npx changeset version
-          publish-script: npm run release
           commit-message: "chore: Release a new version"
           pr-title: "chore: Release a new version"
+
+      # npm publish is run directly rather than through Changesets, so npm's own reason for any refusal shows here.
+      - name: Publish to npm
+        if: steps.changesets.outputs.has-changesets == 'false'
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version > /dev/null 2>&1; then
+            echo "$name@$version is already on npm."
+            exit 0
+          fi
+          echo "Publishing $name@$version with npm $(npm --version)."
+          npm run check
+          # npm explains a refused trusted publisher only at this level, on a line starting "npm verbose oidc".
+          if ! npm publish --loglevel verbose; then
+            echo "::error::npm refused $name@$version. The 'npm verbose oidc' line above says why trusted publishing failed."
+            exit 1
+          fi
+
+      - name: Tag and write the GitHub release
+        if: steps.changesets.outputs.has-changesets == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "v$version is already tagged."
+            exit 0
+          fi
+          git tag "v$version"
+          git push origin "v$version"
+          awk -v heading="## $version" '$0 == heading { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md > notes.md
+          gh release create "v$version" --title "v$version" --notes-file notes.md --verify-tag
+
       # GitHub Packages gets a copy of each version already on npm, so the package shows on the repository page.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.changesets.outputs.has-changesets == 'false'
         with:
           registry-url: https://npm.pkg.github.com
       - name: Mirror the release to GitHub Packages
+        if: steps.changesets.outputs.has-changesets == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
