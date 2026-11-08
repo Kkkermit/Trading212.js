@@ -16,6 +16,7 @@ concurrency:
 jobs:
   build:
     name: Build the site
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,6 +38,7 @@ jobs:
 
   deploy:
     name: Publish to GitHub Pages
+    timeout-minutes: 10
     needs: build
     runs-on: ubuntu-latest
     permissions:
