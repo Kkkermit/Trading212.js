@@ -10,9 +10,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyse:
     name: Analyse
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -37,7 +42,21 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - if: steps.availability.outputs.scan == 'true'
+      # CodeQL downloads its tools from GitHub's release servers, which sometimes answer 504 for a while, so a failed
+      # set-up waits two minutes and tries once more before the job fails.
+      - name: Set up CodeQL
+        id: init
+        if: steps.availability.outputs.scan == 'true'
+        continue-on-error: true
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - name: Wait before setting up CodeQL again
+        if: steps.init.outcome == 'failure'
+        run: sleep 120
+      - name: Set up CodeQL, second try
+        if: steps.init.outcome == 'failure'
         uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: javascript-typescript

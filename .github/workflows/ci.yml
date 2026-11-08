@@ -1,20 +1,23 @@
 name: CI
 
+# Pull requests and main only, so a pushed branch with a pull request is not tested twice.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
 
+# A new commit on a pull request cancels its older run; a run on main always finishes.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
     name: Check
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,6 +44,7 @@ jobs:
 
   test:
     name: Test (${{ matrix.os }}, Node ${{ matrix.node }})
+    timeout-minutes: 15
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -60,6 +64,7 @@ jobs:
 
   runtimes:
     name: Built package on Node, Bun and Deno
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -80,6 +85,7 @@ jobs:
 
   docs:
     name: Docs site
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -104,6 +110,7 @@ jobs:
 
   dependency-review:
     name: Dependency review
+    timeout-minutes: 5
     # Dependency review on a private repository needs GitHub Advanced Security.
     if: github.event_name == 'pull_request' && !github.event.repository.private
     runs-on: ubuntu-latest

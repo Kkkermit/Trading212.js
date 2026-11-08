@@ -136,8 +136,12 @@ docs/                     the documentation site (Astro Starlight); pages are MD
   (Sigstore) with `EMISSINGSIGNATUREKEY`, which npm 11 fixed.
 - Every GitHub Action is pinned to a full commit with its version in a comment. Dependabot keeps both current.
 - Workflows get `contents: read` unless a job needs more, and only that job is granted it.
-- CI runs on every push and pull request; the nightly run repeats the test matrix on the newest Node, re-audits,
-  runs the demo contract tests when their secrets are set, and opens an issue when it fails.
+- CI and CodeQL run on pull requests and on pushes to `main`, so a branch is tested once, through its pull request; a
+  new commit cancels the pull request's older run. Every job has a `timeout-minutes`. The nightly run repeats the test
+  matrix on the newest Node, re-audits, runs the demo contract tests when their secrets are set, and opens an issue
+  when it fails.
+- Nothing in CI downloads from GitHub's release servers if it can be avoided, as they answer 504 for hours at a time:
+  Bun and Deno come from npm, and CodeQL, which has no other source, tries its set-up a second time.
 
 ## Style
 

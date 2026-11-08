@@ -12,6 +12,7 @@ permissions:
 jobs:
   test:
     name: Test (${{ matrix.os }}, Node ${{ matrix.node }})
+    timeout-minutes: 20
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.node == 'latest' }}
     strategy:
@@ -32,6 +33,7 @@ jobs:
 
   audit:
     name: Vulnerabilities and signatures
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,6 +51,7 @@ jobs:
 
   contract:
     name: Contract tests against the demo API
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     environment: demo
     env:
@@ -73,6 +76,7 @@ jobs:
 
   report:
     name: Open an issue on failure
+    timeout-minutes: 5
     needs: [test, audit, contract]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
