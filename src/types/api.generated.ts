@@ -239,6 +239,9 @@ export interface InstrumentIssue {
 		| "APPROACHING_MAX_POSITION_SIZE"
 		| "COMPLEX_INSTRUMENT_APP_TEST_REQUIRED"
 		| "PRICE_TOO_LOW"
+		| "IPO_INSTRUMENT_NOT_AVAILABLE"
+		| "ETN_RECONFIRMATION_REQUIRED"
+		| "ETN_FINAL_RISK_CONFIRMATION_REQUIRED"
 		| (string & {})
 		| null;
 	severity?: "IRREVERSIBLE" | "REVERSIBLE" | "INFORMATIVE" | (string & {}) | null;
@@ -384,7 +387,7 @@ export interface PositionWalletImpact {
 	/** The current market value of the position. */
 	currentValue?: number | null;
 	/** The positive or negative impact on the position's value due to currency rate changes. Only applies to positions with instrument currency that differs from the accounts. */
-	fxImpact?: number | null;
+	fxImpact?: unknown | null;
 	/** The total cost paid for the position. */
 	totalCost?: number | null;
 	/** The unrealized profit & loss for the position. Calculated as currentValue - totalCost. */
