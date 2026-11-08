@@ -5,6 +5,8 @@ import { defineConfig } from "vitest/config";
 const source = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 
 export default defineConfig({
+	// One tsconfig for every file, so the docs' converter compiles without the docs site's own dependencies installed.
+	tsconfig: "tsconfig.json",
 	define: { __VERSION__: JSON.stringify("0.0.0-test") },
 	resolve: {
 		// The examples import the package by name, as a user would.
