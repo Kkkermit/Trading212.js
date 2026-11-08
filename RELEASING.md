@@ -18,7 +18,8 @@ so the docs point everyone at npm.
    GitHub Packages needs the same scope, because it only accepts the name of the GitHub account that owns the
    repository, and the release workflow already has the permission it needs there.
 2. **Make the repository public.** npm only records provenance for a public source repository, and GitHub Pages is
-   free only for public repositories.
+   free only for public repositories. Dependency review and CodeQL also need a public repository, or GitHub Advanced
+   Security; until then CI skips them with a note rather than failing.
 3. **Let Actions open pull requests.** In the repository's **Settings > Actions > General**, under _Workflow
    permissions_, tick _Allow GitHub Actions to create and approve pull requests_. The release workflow needs it to
    open the version pull request.
