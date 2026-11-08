@@ -38,8 +38,10 @@ export interface ErrorDetails {
 	rateLimit?: RateLimitInfo;
 	/** The response body, parsed when it was JSON and always redacted. */
 	body?: unknown;
-	/** The error code Trading 212 put in the body, such as `SellingEquityNotOwned`. */
+	/** The error code Trading 212 put in the body, such as `min-quantity-exceeded`. */
 	apiCode?: string;
+	/** Trading 212's reference for the failed request, worth quoting if you contact its support. */
+	traceId?: string;
 	cause?: unknown;
 }
 
@@ -74,6 +76,8 @@ export class Trading212Error extends Error {
 	readonly rateLimit: RateLimitInfo | undefined;
 	readonly body: unknown;
 	readonly apiCode: string | undefined;
+	/** Trading 212's reference for the failed request, worth quoting if you contact its support. */
+	readonly traceId: string | undefined;
 	/** Set when a paginated read failed part-way: pass it as `cursor` to carry on from where it stopped. */
 	resumeCursor: string | undefined;
 
@@ -88,6 +92,7 @@ export class Trading212Error extends Error {
 		this.rateLimit = details.rateLimit;
 		this.body = details.body;
 		this.apiCode = details.apiCode;
+		this.traceId = details.traceId;
 		this.resumeCursor = undefined;
 		Object.defineProperty(this, BRAND, { value: kinds, enumerable: false });
 	}
@@ -195,12 +200,14 @@ export class ValidationError extends Trading212Error {
 	}
 }
 
-/** The reasons Trading 212 is known to refuse an order with. Others arrive as their raw code. */
+/** Why Trading 212 refused an order, spelt as its error bodies spell it; an unknown reason arrives as its raw code. */
 export type OrderRejectionReason =
-	| "InsufficientFreeForStocksBuy"
-	| "SellingEquityNotOwned"
-	| "MarketClosed"
-	| "QuantityPrecisionMismatch"
+	| "min-quantity-exceeded"
+	| "max-quantity-exceeded"
+	| "insufficient-free-for-stocks-buy"
+	| "selling-equity-not-owned"
+	| "market-closed"
+	| "quantity-precision-mismatch"
 	| (string & {});
 
 /** Trading 212 refused an order for a business reason, such as not enough cash. Nothing was traded. */

@@ -26,11 +26,15 @@ export interface ParsedErrorBody {
 	readonly apiCode?: string;
 	/** The most human sentence the body offered. */
 	readonly message?: string;
+	/** Trading 212's reference for the request, from `traceId`. */
+	readonly traceId?: string;
 	/** The body as parsed JSON, or its text when it was not JSON. */
 	readonly body?: unknown;
 }
 
 const MAX_MESSAGE = 500;
+// Trading 212 sometimes prints a Java Optional, as in "Max quantity for single order is Optional[32880]".
+const JAVA_OPTIONAL = /\bOptional\[([^\]]*)\]/g;
 
 function lastSegment(type: string): string | undefined {
 	if (type === "about:blank") return undefined;
@@ -38,8 +42,8 @@ function lastSegment(type: string): string | undefined {
 }
 
 /**
- * Reads every error body shape Trading 212 is known to send: problem details (`type`, `title`, `detail`), the older
- * `{ code, clarification }` and `{ code, message }`, plain text, and nothing at all.
+ * Reads every error body shape Trading 212 is known to send: problem details (`type`, `title`, `detail`, `traceId`),
+ * the older `{ code, errorMessage }` it uses for a 429, `{ code, clarification }`, plain text, and nothing at all.
  */
 export function parseErrorBody(text: string): ParsedErrorBody {
 	const trimmed = text.trim();
@@ -59,6 +63,7 @@ export function parseErrorBody(text: string): ParsedErrorBody {
 		return typeof value === "string" && value.trim() ? value.trim() : undefined;
 	};
 	const type = stringField("type");
+	const traceId = stringField("traceId");
 	const apiCode = stringField("code") ?? stringField("errorCode") ?? (type ? lastSegment(type) : undefined);
 	const message =
 		stringField("detail") ??
@@ -69,7 +74,8 @@ export function parseErrorBody(text: string): ParsedErrorBody {
 		stringField("title");
 	return {
 		...(apiCode !== undefined && { apiCode }),
-		...(message !== undefined && { message: message.slice(0, MAX_MESSAGE) }),
+		...(message !== undefined && { message: message.replace(JAVA_OPTIONAL, "$1").slice(0, MAX_MESSAGE) }),
+		...(traceId !== undefined && { traceId }),
 		body: json,
 	};
 }
@@ -114,6 +120,7 @@ export function errorFromResponse(context: ResponseContext): Trading212Error {
 		...(rateLimit && { rateLimit }),
 		...(parsed.body !== undefined && { body: parsed.body }),
 		...(parsed.apiCode !== undefined && { apiCode: parsed.apiCode }),
+		...(parsed.traceId !== undefined && { traceId: parsed.traceId }),
 	};
 
 	if (kind === "trade" && (status === 408 || status >= 500)) {
@@ -130,7 +137,8 @@ export function errorFromResponse(context: ResponseContext): Trading212Error {
 					hint: ORDER_REJECTION_HINTS[rejection],
 				});
 			}
-			if (parsed.apiCode && kind === "trade") {
+			// A malformed request is the caller's to fix, not a refusal of the order itself.
+			if (parsed.apiCode && kind === "trade" && parsed.apiCode !== "invalid-request") {
 				return new OrderRejectedError(message, { ...details, reason: parsed.apiCode, hint: HINTS.validation });
 			}
 			return new ValidationError(message, { ...details, hint: HINTS.validation });

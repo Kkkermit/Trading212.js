@@ -158,12 +158,13 @@ export interface FakePendingOrder {
 	reservedShares: number;
 }
 
-function problemDetails(status: number, code: string, detail: string): ScriptedResponse {
-	return { status, body: { type: `/api-errors/${code}`, title: detail, status, detail } };
-}
+const INVALID = "The request is invalid";
+const REFUSED = "Error while placing the order";
+const NOT_FOUND = "Requested entity not found";
 
-function codeError(status: number, code: string, clarification: string): ScriptedResponse {
-	return { status, body: { code, clarification } };
+/** An error in the shape demo sends (`fixtures/errors.json`); the fake adds a `traceId` as Trading 212 does. */
+function apiError(status: number, code: string, title: string, detail: string): ScriptedResponse {
+	return { status, body: { type: `/api-errors/${code}`, title, status, detail } };
 }
 
 /**
@@ -175,7 +176,7 @@ export class FakeTrading212Server {
 	readonly environment: Environment;
 	/** Every request the client made, without credentials. */
 	readonly requests: RecordedRequest[] = [];
-	/** When false, every order is refused with `MarketClosed`. */
+	/** When false, every order is refused with `market-closed`. */
 	marketOpen = true;
 	/** Trading 212 refuses CSV exports on demo; set this to let the fake offer them anyway. */
 	exportsOnDemo = false;
@@ -198,6 +199,7 @@ export class FakeTrading212Server {
 	readonly #failures = new Map<EndpointId, FakeFailure[]>();
 	readonly #origin: string;
 	#nextId = 1_000_000;
+	#traces = 0;
 
 	constructor(state: FakeAccountState = {}, environment: Environment = "demo") {
 		this.environment = environment;
@@ -229,11 +231,13 @@ export class FakeTrading212Server {
 		const request = await recordRequest(input, init);
 		this.requests.push(request);
 		const endpoint = this.#match(init.method ?? "GET", url.pathname);
-		if (url.origin !== this.#origin || !endpoint) return toResponse(problemDetails(404, "not-found", "Unknown route"));
+		if (url.origin !== this.#origin || !endpoint)
+			return toResponse(apiError(404, "not-found", "Not found", "Unknown route"));
 		const failure = this.#failures.get(endpoint.definition.id as EndpointId)?.shift();
 		if (failure && "network" in failure) throw networkError(failure.network);
 		const response =
-			failure ?? this.#authorise(init) ?? this.#route(endpoint.definition.id as EndpointId, request, endpoint.id);
+			failure ??
+			this.#traced(this.#authorise(init) ?? this.#route(endpoint.definition.id as EndpointId, request, endpoint.id));
 		const limit = endpoint.definition.rateLimit;
 		return toResponse({
 			...response,
@@ -276,11 +280,19 @@ export class FakeTrading212Server {
 		return this.#execute(pending.order, execution);
 	}
 
+	#traced(response: ScriptedResponse): ScriptedResponse {
+		const { body } = response;
+		if ((response.status ?? 200) < 400 || typeof body !== "object" || body === null || !("type" in body))
+			return response;
+		return { ...response, body: { ...body, traceId: (this.#traces++).toString(16).padStart(32, "0") } };
+	}
+
 	#authorise(init: RequestInit): ScriptedResponse | undefined {
 		const authorization = new Headers(init.headers).get("authorization");
+		// Demo answers a refused key with an empty plain-text body.
 		return authorization === FAKE_AUTHORIZATION
 			? undefined
-			: { status: 401, body: { code: "AuthenticationFailed", message: "Bad API key" } };
+			: { status: 401, headers: { "content-type": "text/plain; charset=utf-8" }, body: "\n" };
 	}
 
 	#match(method: string, path: string): { definition: EndpointDefinition; id: number | undefined } | undefined {
@@ -383,7 +395,7 @@ export class FakeTrading212Server {
 				return { body: [...this.pending.values()].map((pending) => pending.order) };
 			case "getOrder": {
 				const pending = this.pending.get(pathId ?? 0);
-				return pending ? { body: pending.order } : codeError(404, "OrderNotFound", "Order not found");
+				return pending ? { body: pending.order } : apiError(404, "entity-not-found", NOT_FOUND, "Order not found");
 			}
 			case "cancelOrder":
 				return this.#cancel(pathId ?? 0);
@@ -413,15 +425,17 @@ export class FakeTrading212Server {
 			}
 			case "updatePie": {
 				const pie = this.pies.get(pathId ?? 0);
-				if (!pie) return codeError(404, "PieNotFound", "Pie not found");
+				if (!pie) return apiError(404, "entity-not-found", NOT_FOUND, "Pie not found");
 				pie.settings = { ...pie.settings, ...(body as PieRequest) };
 				return this.#pie(pathId ?? 0);
 			}
 			case "deletePie":
-				return this.pies.delete(pathId ?? 0) ? { status: 200 } : codeError(404, "PieNotFound", "Pie not found");
+				return this.pies.delete(pathId ?? 0)
+					? { status: 200 }
+					: apiError(404, "entity-not-found", NOT_FOUND, "Pie not found");
 			case "duplicatePie": {
 				const pie = this.pies.get(pathId ?? 0);
-				if (!pie) return codeError(404, "PieNotFound", "Pie not found");
+				if (!pie) return apiError(404, "entity-not-found", NOT_FOUND, "Pie not found");
 				const pieId = this.#nextId++;
 				this.pies.set(pieId, { settings: { ...pie.settings, ...(body as PieRequest) }, cash: 0 });
 				return this.#pie(pieId);
@@ -435,7 +449,7 @@ export class FakeTrading212Server {
 
 	#pie(id: number): ScriptedResponse {
 		const pie = this.pies.get(id);
-		if (!pie) return codeError(404, "PieNotFound", "Pie not found");
+		if (!pie) return apiError(404, "entity-not-found", NOT_FOUND, "Pie not found");
 		const details: AccountBucketInstrumentsDetailedResponse = {
 			settings: { ...pie.settings, id, creationDate: new Date(0).toISOString() },
 			instruments: Object.entries(pie.settings.instrumentShares ?? {}).map(([ticker, share]) => ({
@@ -450,7 +464,7 @@ export class FakeTrading212Server {
 
 	#cancel(orderId: number): ScriptedResponse {
 		const pending = this.pending.get(orderId);
-		if (!pending) return codeError(404, "OrderNotFound", "Order not found");
+		if (!pending) return apiError(404, "entity-not-found", NOT_FOUND, "Order not found");
 		this.pending.delete(orderId);
 		this.cash += pending.reservedCash;
 		this.orderHistory.unshift({ order: { ...pending.order, status: "CANCELLED" } });
@@ -460,14 +474,14 @@ export class FakeTrading212Server {
 	#place(id: EndpointId, body: Record<string, unknown>): ScriptedResponse {
 		const ticker = typeof body.ticker === "string" ? body.ticker : "";
 		const quantity = typeof body.quantity === "number" ? body.quantity : Number.NaN;
-		if (!this.#instrument(ticker)) return codeError(400, "InstrumentNotFound", `No instrument ${ticker}`);
+		if (!this.#instrument(ticker)) return apiError(400, "instrument-not-found", REFUSED, `No instrument ${ticker}`);
 		if (!Number.isFinite(quantity) || quantity === 0)
-			return problemDetails(400, "invalid-quantity", "Quantity must not be zero");
+			return apiError(400, "invalid-request", INVALID, "Invalid payload");
 		if (decimalPlaces(quantity) > 4)
-			return problemDetails(400, "quantity-precision-mismatch", "Quantity precision mismatch");
+			return apiError(400, "quantity-precision-mismatch", REFUSED, "Quantity precision mismatch");
 		if (id !== "placeMarketOrder" && "extendedHours" in body)
-			return problemDetails(400, "bad-request", "extendedHours is only valid for market orders");
-		if (!this.marketOpen) return codeError(400, "MarketClosed", "The market is closed");
+			return apiError(400, "invalid-request", INVALID, "Invalid payload");
+		if (!this.marketOpen) return apiError(400, "market-closed", REFUSED, "The market is closed");
 		const type =
 			{
 				placeMarketOrder: "MARKET",
@@ -482,10 +496,10 @@ export class FakeTrading212Server {
 		const holding = this.holdings.get(ticker);
 		const available = holding ? holding.quantity - holding.inPies - this.#reservedShares(ticker) : 0;
 		if (buying && roundMoney(quantity * price) > roundMoney(this.cash)) {
-			return codeError(400, "InsufficientFreeForStocksBuy", "Insufficient funds");
+			return apiError(400, "insufficient-free-for-stocks-buy", REFUSED, "Insufficient funds");
 		}
 		if (!buying && -quantity > roundShares(available) + 1e-9)
-			return codeError(400, "SellingEquityNotOwned", "Selling equity not owned");
+			return apiError(400, "selling-equity-not-owned", REFUSED, "Selling equity not owned");
 		const order: Order = {
 			id: this.#nextId++,
 			ticker,
@@ -573,7 +587,12 @@ export class FakeTrading212Server {
 	): ScriptedResponse {
 		const limit = request.query.limit === undefined ? 20 : Number(request.query.limit);
 		if (!Number.isInteger(limit) || limit < 1 || limit > 50)
-			return problemDetails(400, "bad-filtering-arguments", "limit must be 1 to 50");
+			return apiError(
+				400,
+				"invalid-request",
+				INVALID,
+				limit > 50 ? "Limit cannot be greater than 50" : "Invalid limit",
+			);
 		const ticker = request.query.ticker;
 		const items = ticker ? all.filter((item) => tickerOf(item) === ticker) : all;
 		const start = request.query.cursor === undefined ? 0 : Number(request.query.cursor);
@@ -591,7 +610,7 @@ export class FakeTrading212Server {
 
 	#exportsRefused(): ScriptedResponse | undefined {
 		return this.environment === "demo" && !this.exportsOnDemo
-			? problemDetails(403, "not-available-in-demo-account", "Not available in demo account")
+			? apiError(403, "not-available-in-demo-account", "Not available in demo account", "Not available in demo account")
 			: undefined;
 	}
 

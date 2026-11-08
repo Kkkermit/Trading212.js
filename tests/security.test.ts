@@ -36,6 +36,7 @@ const echo = (request: RecordedRequest) => ({
 		code: "Echo",
 		message: `You sent Basic ${ENCODED} with key ${API_KEY} and secret ${API_SECRET}`,
 		authorization: `Basic ${ENCODED}`,
+		traceId: `trace-${API_SECRET}`,
 		nested: { apiSecret: API_SECRET, list: [API_KEY] },
 		path: request.path,
 	},
@@ -61,6 +62,7 @@ describe("credentials never leak", () => {
 		const { client } = scripted([echo]);
 		const error = (await client.account.summary().catch((caught: unknown) => caught)) as Trading212Error;
 		expect(error).toBeInstanceOf(Trading212Error);
+		expect(error.traceId).toMatch(/^trace-/);
 		for (const view of [error.message, error.stack ?? "", error.toLog(), error.body, error, JSON.stringify(error)]) {
 			expect(leaks(view)).toEqual([]);
 		}

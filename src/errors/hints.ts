@@ -35,13 +35,17 @@ export const HINTS = {
 } as const;
 
 export const ORDER_REJECTION_HINTS = {
-	InsufficientFreeForStocksBuy:
+	"min-quantity-exceeded":
+		"The quantity is below the smallest Trading 212 accepts for this order, which the error message gives. Raise the quantity.",
+	"max-quantity-exceeded":
+		"The quantity is above the largest Trading 212 accepts in one order, which the error message gives. Split it into smaller orders.",
+	"insufficient-free-for-stocks-buy":
 		"Not enough free cash for this buy. Check `cash.availableToTrade` in `account.summary()`; cash reserved for pending orders or held in pies does not count.",
-	SellingEquityNotOwned:
+	"selling-equity-not-owned":
 		"You are selling more than is available. Shares held in pies or reserved by pending orders do not count: check `quantityAvailableForTrading` on the position, or use `orders.sellAll(ticker)`.",
-	MarketClosed:
+	"market-closed":
 		"The market for this instrument is closed. `exchanges.status(ticker)` shows its current session and when it next opens.",
-	QuantityPrecisionMismatch:
+	"quantity-precision-mismatch":
 		"Quantities allow at most 4 decimal places. Use `truncateQuantity(quantity)` to round down safely.",
 } as const;
 

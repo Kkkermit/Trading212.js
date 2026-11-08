@@ -49,20 +49,22 @@ run("demo contract", () => {
 		await expect(client.reports.list()).rejects.toBeInstanceOf(NotAvailableInDemoError);
 	});
 
+	// 5 shares at $1 clears the smallest order demo accepts, which 0.1 did not (fixtures/errors.json).
 	it("places a limit order far from the market and cancels it", async () => {
+		const { session } = await client.exchanges.status("AAPL_US_EQ");
 		try {
 			const order = await client.orders.buy({
 				type: "limit",
 				ticker: "AAPL_US_EQ",
-				quantity: 0.1,
+				quantity: 5,
 				limitPrice: 1,
 				timeValidity: "DAY",
 			});
 			expect(order.id).toBeTypeOf("number");
 			await client.orders.cancel(order.id ?? 0);
 		} catch (error) {
-			// Outside trading hours the demo may refuse instead; that is still the contract.
-			expect(error).toBeInstanceOf(OrderRejectedError);
+			// While the market is shut demo may refuse the order; at any other time a refusal is a finding.
+			if (!(error instanceof OrderRejectedError) || session !== "closed") throw error;
 		}
 	});
 });

@@ -36,22 +36,24 @@ through the same redaction as errors, so no credential ever reaches a log.
 So the default `info` level gives you a record of every order and its outcome, and stays quiet about reads. Response
 bodies are never logged, and a logger that throws cannot break a request.
 
-A refused order is logged with the reason and what to do about it:
+A refused order is logged with the reason and what to do about it. This is the line demo's real refusal of a
+too-small order produces:
 
 ```
-[trading212] INFO  POST /api/v0/equity/orders/market failed with 400 Bad Request: Insufficient funds endpoint=placeMarketOrder code=order_rejected status=400 apiCode=InsufficientFreeForStocksBuy hint="Not enough free cash for this buy. …"
+[trading212] INFO  POST /api/v0/equity/orders/limit failed with 400 Bad Request: must trade at least 1.33914872 endpoint=placeLimitOrder code=order_rejected status=400 apiCode=min-quantity-exceeded traceId=e74f32604a3af882ca5a11f14129f39f hint="The quantity is below the smallest Trading 212 accepts for this order, which the error message gives. Raise the quantity."
 ```
 
-| Field                | Means                                                           |
-| -------------------- | --------------------------------------------------------------- |
-| `endpoint`           | The library's name for the endpoint, such as `placeMarketOrder` |
-| `attempt`            | 1 for the first try, then 2, 3 … for retries of a read          |
-| `status`             | The HTTP status                                                 |
-| `durationMs`         | How long the answer took                                        |
-| `rateLimitRemaining` | Calls left in this period, from Trading 212's headers           |
-| `delayMs`, `waitMs`  | How long a retry or a rate-limit wait will take                 |
-| `code`, `apiCode`    | The error's stable code, and Trading 212's own code             |
-| `hint`               | What to do about it                                             |
+| Field                | Means                                                            |
+| -------------------- | ---------------------------------------------------------------- |
+| `endpoint`           | The library's name for the endpoint, such as `placeMarketOrder`  |
+| `attempt`            | 1 for the first try, then 2, 3 … for retries of a read           |
+| `status`             | The HTTP status                                                  |
+| `durationMs`         | How long the answer took                                         |
+| `rateLimitRemaining` | Calls left in this period, from Trading 212's headers            |
+| `delayMs`, `waitMs`  | How long a retry or a rate-limit wait will take                  |
+| `code`, `apiCode`    | The error's stable code, and Trading 212's own code              |
+| `traceId`            | Trading 212's reference for the request, to quote to its support |
+| `hint`               | What to do about it                                              |
 
 ## pino, bunyan and your own logger
 

@@ -39,9 +39,9 @@ report failed or was cancelled. The download goes to a signed link **without** y
 so fetch a fresh one with `reports.list()` if a download is refused.
 
 <Aside type="caution" title="Demo">
-	The spec does not say whether demo offers CSV exports. This library expects demo to refuse them, and turns that
-	refusal into `NotAvailableInDemoError`. This has not yet been confirmed; `npm run test:demo` in the repository checks
-	it against the real API.
+	Demo does not offer CSV exports. It refuses them with a 403, which the client turns into `NotAvailableInDemoError`;
+	the contract tests confirm this against the real demo API. A refused call still counts against the endpoint's rate
+	limit, so a second one inside the minute is answered with a 429 instead.
 </Aside>
 
 ## Parsing the CSV

@@ -8,17 +8,18 @@ import Example from "../../../components/Example.astro";
 
 Every error the library throws extends `Trading212Error` and carries:
 
-| Field          | Holds                                                           |
-| -------------- | --------------------------------------------------------------- |
-| `code`         | A stable name, such as `missing_scope`, for `switch` statements |
-| `hint`         | What to do about it, in plain English                           |
-| `status`       | The HTTP status, if there was a response                        |
-| `request`      | `{ method, path, endpoint }`, never headers or credentials      |
-| `rateLimit`    | What the rate-limit headers said                                |
-| `body`         | The response body, parsed and redacted                          |
-| `apiCode`      | Trading 212's own code, from `code` or a problem-details `type` |
-| `resumeCursor` | On a failed history iteration, where to carry on                |
-| `toLog()`      | All of the above as a plain object, safe to hand to any logger  |
+| Field          | Holds                                                            |
+| -------------- | ---------------------------------------------------------------- |
+| `code`         | A stable name, such as `missing_scope`, for `switch` statements  |
+| `hint`         | What to do about it, in plain English                            |
+| `status`       | The HTTP status, if there was a response                         |
+| `request`      | `{ method, path, endpoint }`, never headers or credentials       |
+| `rateLimit`    | What the rate-limit headers said                                 |
+| `body`         | The response body, parsed and redacted                           |
+| `apiCode`      | Trading 212's own code, such as `min-quantity-exceeded`          |
+| `traceId`      | Trading 212's reference for the request, to quote to its support |
+| `resumeCursor` | On a failed history iteration, where to carry on                 |
+| `toLog()`      | All of the above as a plain object, safe to hand to any logger   |
 
 `instanceof` works on every class, even when ESM and CommonJS copies of the package are both loaded.
 `isTrading212Error(value)` checks for any of them.
@@ -90,8 +91,8 @@ once.
 
 ### `NotAvailableInDemoError`
 
-Code `not_available_in_demo`, status 403. The feature only exists on live. CSV exports are the expected case, which
-has not yet been confirmed against demo.
+Code `not_available_in_demo`, status 403. The feature only exists on live. CSV exports are one: demo refuses
+`reports.list()` this way, confirmed by the contract tests.
 
 ### `PermissionError`
 
@@ -100,15 +101,22 @@ public address is on its list.
 
 ### `OrderRejectedError`
 
-Code `order_rejected`, status 400. Trading 212 refused an order; nothing was traded. `error.reason`:
+Code `order_rejected`, status 400. Trading 212 refused an order; nothing was traded. `error.reason` is Trading 212's
+code for why, and `error.message` ends with its explanation. The client knows these, each with its own `hint`:
 
-| Reason                         | Fix                                                                        |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| `InsufficientFreeForStocksBuy` | Not enough free cash; check `cash.availableToTrade`                        |
-| `SellingEquityNotOwned`        | Selling more than available; shares in pies or pending orders do not count |
-| `MarketClosed`                 | Check `exchanges.status(ticker)`                                           |
-| `QuantityPrecisionMismatch`    | More than 4 decimal places; use `truncateQuantity()`                       |
-| anything else                  | Trading 212's own code, passed through                                     |
+| Reason                             | Fix                                                                        | Confirmed on demo |
+| ---------------------------------- | -------------------------------------------------------------------------- | ----------------- |
+| `min-quantity-exceeded`            | Too small; the message gives the smallest quantity, so raise it            | Yes               |
+| `max-quantity-exceeded`            | Too large for one order; the message gives the limit, so split it          | Yes               |
+| `insufficient-free-for-stocks-buy` | Not enough free cash; check `cash.availableToTrade`                        | Not yet           |
+| `selling-equity-not-owned`         | Selling more than available; shares in pies or pending orders do not count | Not yet           |
+| `market-closed`                    | Check `exchanges.status(ticker)`                                           | Not yet           |
+| `quantity-precision-mismatch`      | More than 4 decimal places; use `truncateQuantity()`                       | Not yet           |
+| anything else                      | Trading 212's own code, passed through                                     |                   |
+
+The codes not yet confirmed are matched loosely, so `InsufficientFreeForStocksBuy` and
+`insufficient-free-for-stocks-buy` both give the same `reason`. A malformed order, which Trading 212 answers with
+`invalid-request` ("Invalid payload"), is a plain `ValidationError` instead: the request needs fixing, not the order.
 
 ### `NotFoundError`
 
@@ -150,7 +158,27 @@ refused connection, TLS), which makes even an order safe to try again.
 
 ## Error bodies
 
-Trading 212's spec documents no error body, and these shapes have not yet been confirmed against the API.
-`parseErrorBody(text)` returns `{ apiCode, message }` from any of them, and is exported for your own use. It reads problem details (`{ type, title, status, detail }`), `{ code, clarification }`,
-`{ code, message }`, plain text and an empty body, so an unknown shape still gives a useful error. Bodies are redacted
-before they are kept.
+Trading 212's spec documents no error body. What demo really sends is recorded in
+[`fixtures/errors.json`](https://github.com/Kkkermit/Trading212.js/blob/main/fixtures/errors.json), and every
+response there is replayed through the client by the tests:
+
+- **Most errors are problem details**, as JSON:
+
+  ```json
+  {
+  	"type": "/api-errors/entity-not-found",
+  	"title": "Requested entity not found",
+  	"status": 404,
+  	"detail": "Order not found",
+  	"traceId": "002fc4767c1b3a9e8b0ba5237bc49a2e"
+  }
+  ```
+
+  The last part of `type` becomes `apiCode`, `detail` ends the message, and `traceId` is kept on the error.
+
+- **A refused key (401) has an empty body**, so the error comes from the status alone.
+- **A 429 has the older shape** `{ code, context, errorMessage }`, sent as plain text and with no rate-limit headers.
+
+`parseErrorBody(text)` returns `{ apiCode, message, traceId }` from any of these, and is exported for your own use. It
+also reads `{ code, clarification }`, `{ code, message }` and plain text, so an unexpected shape still gives a useful
+error. Bodies are redacted before they are kept.

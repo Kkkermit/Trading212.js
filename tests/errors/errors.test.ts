@@ -14,7 +14,7 @@ import {
 
 describe("error classes", () => {
 	it("are instances of every class above them", () => {
-		const error = new OrderRejectedError("no", { reason: "MarketClosed" });
+		const error = new OrderRejectedError("no", { reason: "market-closed" });
 		expect(error).toBeInstanceOf(OrderRejectedError);
 		expect(error).toBeInstanceOf(ValidationError);
 		expect(error).toBeInstanceOf(Trading212Error);

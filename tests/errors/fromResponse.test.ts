@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -15,6 +18,10 @@ import {
 	ValidationError,
 } from "../../src/errors/errors";
 import { errorFromResponse, parseErrorBody, type ResponseContext } from "../../src/errors/fromResponse";
+import { ORDER_REJECTION_HINTS } from "../../src/errors/hints";
+import { parseRateLimitHeaders } from "../../src/http/rateLimitHeaders";
+import type { Trading212 } from "../../src/index";
+import { scripted } from "../helpers";
 
 const context = (overrides: Partial<ResponseContext>): ResponseContext => ({
 	status: 400,
@@ -32,9 +39,23 @@ describe("parseErrorBody", () => {
 	it("reads problem details", () => {
 		expect(
 			parseErrorBody(
-				'{"type":"/api-errors/not-available-in-demo-account","title":"Nope","status":403,"detail":"Not in demo"}',
+				'{"type":"/api-errors/not-available-in-demo-account","title":"Nope","status":403,"detail":"Not in demo","traceId":"abc123"}',
 			),
-		).toMatchObject({ apiCode: "not-available-in-demo-account", message: "Not in demo" });
+		).toMatchObject({ apiCode: "not-available-in-demo-account", message: "Not in demo", traceId: "abc123" });
+	});
+
+	it("reads the code and errorMessage shape a 429 arrives in", () => {
+		expect(
+			parseErrorBody(
+				'{"code":"BusinessException","context":{"type":"TooManyRequests"},"errorMessage":"too many requests"}',
+			),
+		).toMatchObject({ apiCode: "BusinessException", message: "too many requests" });
+	});
+
+	it("prints a Java Optional as its value", () => {
+		expect(parseErrorBody('{"detail":"Max quantity for single order is Optional[32880]"}').message).toBe(
+			"Max quantity for single order is 32880",
+		);
 	});
 
 	it("reads the legacy code and clarification shape", () => {
@@ -94,12 +115,14 @@ describe("errorFromResponse", () => {
 		expect(other.hint).toContain("IP addresses");
 	});
 
-	it("names known order rejections, wherever the code appears", () => {
+	it("names known order rejections, in either spelling of the code", () => {
 		for (const [text, reason] of [
-			['{"code":"InsufficientFreeForStocksBuy"}', "InsufficientFreeForStocksBuy"],
-			['{"code":"SellingEquityNotOwned"}', "SellingEquityNotOwned"],
-			['{"code":"MarketClosed","clarification":"closed"}', "MarketClosed"],
-			['{"type":"/api-errors/quantity-precision-mismatch"}', "QuantityPrecisionMismatch"],
+			['{"type":"/api-errors/min-quantity-exceeded","detail":"must trade at least 1.5"}', "min-quantity-exceeded"],
+			['{"type":"/api-errors/max-quantity-exceeded"}', "max-quantity-exceeded"],
+			['{"code":"InsufficientFreeForStocksBuy"}', "insufficient-free-for-stocks-buy"],
+			['{"code":"SellingEquityNotOwned"}', "selling-equity-not-owned"],
+			['{"code":"MarketClosed","clarification":"closed"}', "market-closed"],
+			['{"type":"/api-errors/quantity-precision-mismatch"}', "quantity-precision-mismatch"],
 		] as const) {
 			const error = errorFromResponse(context({ status: 400, text, kind: "trade" }));
 			expect(error, text).toBeInstanceOf(OrderRejectedError);
@@ -116,6 +139,20 @@ describe("errorFromResponse", () => {
 		expect(read).toBeInstanceOf(ValidationError);
 		expect(read).not.toBeInstanceOf(OrderRejectedError);
 		expect(read.apiCode).toBe("BadFilter");
+	});
+
+	/** A malformed order is the caller's mistake, not Trading 212 turning the order down. */
+	it("treats an invalid request on a trade as validation, not a rejection", () => {
+		const error = errorFromResponse(
+			context({
+				status: 400,
+				text: '{"type":"/api-errors/invalid-request","detail":"Invalid payload"}',
+				kind: "trade",
+			}),
+		);
+		expect(error).toBeInstanceOf(ValidationError);
+		expect(error).not.toBeInstanceOf(OrderRejectedError);
+		expect(error.apiCode).toBe("invalid-request");
 	});
 
 	it("gives 404s a hint for the endpoint", () => {
@@ -162,5 +199,121 @@ describe("errorFromResponse outside trades", () => {
 		const error = errorFromResponse(context({ status: 400, text: '{"code":"MarketClosed"}' }));
 		expect(error).toBeInstanceOf(ValidationError);
 		expect(error).not.toBeInstanceOf(OrderRejectedError);
+	});
+});
+
+interface Captured {
+	readonly name: string;
+	readonly status: number;
+	readonly headers: Record<string, string>;
+	readonly body: string;
+}
+
+const captured = (
+	JSON.parse(readFileSync(join(import.meta.dirname, "../../fixtures/errors.json"), "utf8")) as {
+		results: Captured[];
+	}
+).results;
+
+function replay(name: string, call: (client: Trading212) => Promise<unknown>): Promise<unknown> {
+	const response = captured.find((result) => result.name === name);
+	if (!response) throw new Error(`fixtures/errors.json has no "${name}"`);
+	const { client } = scripted([{ status: response.status, headers: response.headers, body: response.body }], {
+		retry: { maxAttempts: 1 },
+	});
+	return call(client).then(
+		() => {
+			throw new Error(`"${name}" was answered as a success`);
+		},
+		(error: unknown) => error,
+	);
+}
+
+const limitOrder = { ticker: "AAPL_US_EQ", limitPrice: 1, timeValidity: "DAY" } as const;
+
+/** Each response here is one demo really sent (`npm run fixtures:capture`), replayed through the client. */
+describe("responses captured from demo", () => {
+	it("covers every captured response", () => {
+		expect(captured.map((result) => result.name).sort()).toEqual(
+			[
+				"bad key",
+				"cancel missing order",
+				"exports on demo",
+				"extended hours on a limit order",
+				"below the minimum quantity",
+				"limit over 50",
+				"missing order",
+				"above the maximum quantity",
+			].sort(),
+		);
+	});
+
+	it("a refused key, whose body is empty", async () => {
+		const error = (await replay("bad key", (client) => client.account.summary())) as AuthenticationError;
+		expect(error).toBeInstanceOf(AuthenticationError);
+		expect(error.apiCode).toBeUndefined();
+	});
+
+	it("a missing order, read or cancelled, with its trace ID", async () => {
+		const read = (await replay("missing order", (client) => client.orders.get(1))) as NotFoundError;
+		expect(read).toBeInstanceOf(NotFoundError);
+		expect(read.apiCode).toBe("entity-not-found");
+		expect(read.message).toMatch(/: Order not found$/);
+		expect(read.traceId).toBe("002fc4767c1b3a9e8b0ba5237bc49a2e");
+		const cancelled = await replay("cancel missing order", (client) => client.orders.cancel(1));
+		expect(cancelled).toBeInstanceOf(NotFoundError);
+		expect(cancelled).not.toBeInstanceOf(OrderOutcomeUnknownError);
+	});
+
+	it("an order below the minimum quantity", async () => {
+		const error = (await replay("below the minimum quantity", (client) =>
+			client.orders.limit({ ...limitOrder, quantity: 0.1 }),
+		)) as OrderRejectedError;
+		expect(error).toBeInstanceOf(OrderRejectedError);
+		expect(error.reason).toBe("min-quantity-exceeded");
+		expect(error.hint).toBe(ORDER_REJECTION_HINTS["min-quantity-exceeded"]);
+		expect(error.message).toMatch(/must trade at least 1\.33914872$/);
+	});
+
+	it("an order above the maximum quantity, with the Java Optional tidied away", async () => {
+		const error = (await replay("above the maximum quantity", (client) =>
+			client.orders.limit({ ...limitOrder, quantity: -10 }),
+		)) as OrderRejectedError;
+		expect(error.reason).toBe("max-quantity-exceeded");
+		expect(error.message).toMatch(/single order is 32880$/);
+	});
+
+	it("an order whose payload Trading 212 could not accept", async () => {
+		const error = await replay("extended hours on a limit order", (client) =>
+			client.orders.limit({ ...limitOrder, quantity: 0.1 }),
+		);
+		expect(error).toBeInstanceOf(ValidationError);
+		expect(error).not.toBeInstanceOf(OrderRejectedError);
+	});
+
+	it("a history page that asked for too much", async () => {
+		const error = (await replay("limit over 50", (client) =>
+			client.history.orders.list({ limit: 50 }),
+		)) as ValidationError;
+		expect(error).toBeInstanceOf(ValidationError);
+		expect(error.message).toMatch(/Limit cannot be greater than 50$/);
+	});
+
+	it("a 429 that carries no rate-limit headers", async () => {
+		const error = (await replay("exports on demo", (client) => client.reports.list())) as RateLimitError;
+		expect(error).toBeInstanceOf(RateLimitError);
+		expect(error.rateLimit).toBeUndefined();
+		expect(error.message).toMatch(/too many requests$/);
+	});
+
+	it("rate-limit headers, whose reset is in Unix seconds and period in seconds", () => {
+		const headers = captured.find((result) => result.name === "missing order")?.headers ?? {};
+		expect(parseRateLimitHeaders(new Headers(headers))).toEqual({
+			limit: 1,
+			periodMs: 1000,
+			remaining: 0,
+			used: 1,
+			resetAt: 1_794_097_875_000,
+		});
 	});
 });

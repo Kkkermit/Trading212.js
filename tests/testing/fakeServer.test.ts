@@ -62,15 +62,54 @@ describe("the fake server", () => {
 				headers: { Authorization: `Basic ${btoa("fake-trading212-key:fake-trading212-secret")}` },
 				body: JSON.stringify(body),
 			});
-		expect(await (await place({ ticker: "NOPE", quantity: 1 })).json()).toMatchObject({ code: "InstrumentNotFound" });
+		expect(await (await place({ ticker: "NOPE", quantity: 1 })).json()).toMatchObject({
+			type: "/api-errors/instrument-not-found",
+		});
 		expect((await place({ ticker: "AAPL_US_EQ", quantity: 0 })).status).toBe(400);
 		expect(await (await place({ ticker: "AAPL_US_EQ", quantity: 0.12345 })).json()).toMatchObject({
 			type: "/api-errors/quantity-precision-mismatch",
 		});
-		expect(
-			(await place({ ticker: "AAPL_US_EQ", quantity: 1, limitPrice: 1, extendedHours: true }, "limit")).status,
-		).toBe(400);
 		expect((await place({})).status).toBe(400);
+	});
+
+	/** Users' tests should meet the errors demo really sends, as recorded in fixtures/errors.json. */
+	it("answers errors in the shape demo sends", async () => {
+		const { server } = createFakeTrading212();
+		const call = (path: string, init: RequestInit = {}, authorized = true) =>
+			server.fetch(`https://demo.trading212.com/api/v0/equity/${path}`, {
+				...init,
+				headers: authorized ? { Authorization: `Basic ${btoa("fake-trading212-key:fake-trading212-secret")}` } : {},
+			});
+		const refused = await call("account/summary", {}, false);
+		expect(refused.status).toBe(401);
+		expect(await refused.text()).toBe("\n");
+		const missing = await call("orders/1");
+		expect(await missing.json()).toEqual({
+			type: "/api-errors/entity-not-found",
+			title: "Requested entity not found",
+			status: 404,
+			detail: "Order not found",
+			traceId: "0".repeat(32),
+		});
+		const extended = await call("orders/limit", {
+			method: "POST",
+			body: JSON.stringify({
+				ticker: "AAPL_US_EQ",
+				quantity: 1,
+				limitPrice: 1,
+				timeValidity: "DAY",
+				extendedHours: true,
+			}),
+		});
+		expect(await extended.json()).toMatchObject({
+			type: "/api-errors/invalid-request",
+			detail: "Invalid payload",
+			traceId: `${"0".repeat(31)}1`,
+		});
+		expect(await (await call("history/orders?limit=51")).json()).toMatchObject({
+			type: "/api-errors/invalid-request",
+			detail: "Limit cannot be greater than 50",
+		});
 	});
 
 	it("fills a pending sell, and refuses to fill an order it does not have", async () => {

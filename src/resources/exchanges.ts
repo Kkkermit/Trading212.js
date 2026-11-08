@@ -101,7 +101,7 @@ export class ExchangesResource {
 
 	/**
 	 * Whether an instrument's market is open, read from Trading 212's working schedules, so you can check before an
-	 * order is refused with `MarketClosed`. The schedules cover a limited window ahead, so `nextOpen` can be undefined.
+	 * order is refused with `market-closed`. The schedules cover a limited window ahead, so `nextOpen` can be undefined.
 	 *
 	 * @example
 	 * const { open, next } = await t212.exchanges.status("AAPL_US_EQ");

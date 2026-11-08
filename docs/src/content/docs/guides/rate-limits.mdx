@@ -11,11 +11,11 @@ one budget. The [API coverage](/Trading212.js/reference/api-coverage/) page list
 
 ## Modes
 
-| `rateLimit`      | Does                                                                                        |
-| ---------------- | ------------------------------------------------------------------------------------------- |
-| `pace` (default) | Spreads calls evenly over each period, as Trading 212 recommends, so 429s should not happen |
-| `burst`          | Spends a period's whole allowance at once, then waits for the reset                         |
-| `off`            | Sends immediately; a read that meets a 429 is still retried after the reset                 |
+| `rateLimit`      | Does                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| `pace` (default) | Spreads calls evenly over each period, as Trading 212 recommends, so 429s should not happen  |
+| `burst`          | Spends a period's whole allowance at once, then waits for the reset                          |
+| `off`            | Sends immediately; a read that meets a 429 is still retried, after the reset if one is given |
 
 With `pace`, a second `positions.list()` within the same second waits rather than failing.
 
@@ -27,6 +27,11 @@ period, corrected by the headers, and what the last response said was left and w
 In every mode the client corrects its budget from each response's `x-ratelimit-*` headers, so spending by another
 program on the same account counts as soon as it shows. If a call would have to wait longer than
 `maxRateLimitWaitMs` (default 60 s), it throws `RateLimitError` with `retryAfterMs` instead of hanging.
+
+What demo sends, recorded in `fixtures/errors.json`: every answer, refusals included, carries `x-ratelimit-limit`,
+`x-ratelimit-period` and `x-ratelimit-remaining` and `x-ratelimit-used`, and `x-ratelimit-reset` as a Unix time in
+seconds. A 429 itself carries none of them, so the client then closes the endpoint for one whole period before it
+sends there again.
 
 ## Several clients, several processes
 

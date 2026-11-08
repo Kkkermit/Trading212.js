@@ -85,11 +85,12 @@ class is listed in [Errors](/Trading212.js/guides/errors/).
 ### `parseErrorBody()`
 
 ```ts
-parseErrorBody(text: string): { apiCode?: string; message?: string }
+parseErrorBody(text: string): { apiCode?: string; message?: string; traceId?: string; body?: unknown }
 ```
 
-Reads Trading 212's code and the most human sentence from an error body, whatever its shape: problem details,
-`{ code, clarification }`, `{ code, message }`, plain text or empty.
+Reads Trading 212's code, the most human sentence and its trace ID from an error body, whatever its shape: problem
+details, the `{ code, errorMessage }` a 429 arrives in, `{ code, clarification }`, `{ code, message }`, plain text or
+empty. See [Error bodies](/Trading212.js/guides/errors/#error-bodies) for what demo really sends.
 
 ## Logging and caching
 

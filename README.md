@@ -30,8 +30,8 @@ await t212.orders.waitFor(order); // FILLED
   retried, a request that may or may not have executed throws `OrderOutcomeUnknownError` rather than a plain
   failure, and `{ dryRun: true }` shows the exact request without sending it.
 - **Errors tell you what to do.** Every error is a named class with a `hint` in plain English. A 403 names the
-  permission your key lacks. A 401 explains that demo keys do not work on live. `SellingEquityNotOwned` points you
-  at the shares locked in pies.
+  permission your key lacks. A 401 explains that demo keys do not work on live. An order that is too small says
+  so, and one selling more than you hold points you at the shares locked in pies.
 - **Your key stays secret.** Credentials are redacted from every log line, error, hook event and test recording,
   and a test suite proves it by echoing them back from a hostile server. Redirects are refused, pagination links
   are pinned to Trading 212's host, and signed download links never receive your key.
@@ -153,7 +153,7 @@ There is no third environment: "production" and "real" mean `live`, and "paper",
 `portfolio`, to read the position.
 
 Paths are under `/api/v0`. `portfolio.snapshot()` combines the account summary and positions. CSV exports are
-expected to be live only, which has not yet been confirmed against demo. Trading 212 has deprecated the pie
+live only: demo refuses them, as the contract tests confirm. Trading 212 has deprecated the pie
 endpoints, which still work. The exported `ENDPOINTS` table holds the same facts at run time. See the
 [documentation](#documentation) for each part.
 
@@ -248,7 +248,7 @@ const { client, server } = createFakeTrading212({
 await client.orders.sell({ ticker: "AAPL_US_EQ", quantity: 1 });
 expect(server.position("AAPL_US_EQ")?.quantity).toBe(1);
 
-server.marketOpen = false; // the next order is refused with MarketClosed
+server.marketOpen = false; // the next order is refused with market-closed
 server.failNext("getAccountSummary", { status: 503 }); // or { network: "ECONNRESET" }
 ```
 
@@ -277,9 +277,9 @@ The full documentation is at **[kkkermit.github.io/Trading212.js](https://kkkerm
 ## Status
 
 Version 0.x while the API is in beta. Types and endpoint metadata are generated from Trading 212's OpenAPI spec, and
-a weekly job checks for changes. A few behaviours the spec does not document, chiefly the shape of error bodies, are handled
-defensively and not yet confirmed against the real API. The contract tests in `tests/contract` check the rest
-against demo when run with a demo key.
+a weekly job checks for changes. The spec does not document error bodies, so the ones demo really sends are recorded in
+`fixtures/errors.json` and replayed by the tests; the few refusals not seen there yet are handled defensively. The
+contract tests in `tests/contract` check the rest against demo when run with a demo key.
 
 ## Contributing and security
 

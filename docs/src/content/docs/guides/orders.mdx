@@ -108,7 +108,7 @@ that has already gone throws `NotFoundError`. At most 50 orders may be pending p
 | Error                          | Means                                                                               |
 | ------------------------------ | ----------------------------------------------------------------------------------- |
 | `ValidationError`              | Refused before sending; fix what `error.issues` lists                               |
-| `OrderRejectedError`           | Refused by Trading 212; `error.reason` is its code, such as `SellingEquityNotOwned` |
+| `OrderRejectedError`           | Refused by Trading 212; `error.reason` is its code, such as `min-quantity-exceeded` |
 | `TradingDisabledError`         | Trading is off for this client, as it is on live by default; nothing was sent       |
 | `OrderOutcomeUnknownError`     | It may have gone through. Check `orders.list()` and `history.orders.list()` first   |
 | `NetworkError` (`sent: false`) | It never left your machine, so it is safe to send again                             |
@@ -119,6 +119,9 @@ that has already gone throws `NotFoundError`. At most 50 orders may be pending p
 	recipe](/Trading212.js/recipes/#resend-an-order-safely) shows how.
 </Aside>
 
-The rejection reasons the client recognises are `InsufficientFreeForStocksBuy`, `SellingEquityNotOwned`,
-`MarketClosed` and `QuantityPrecisionMismatch`, each with its own hint. Any other code Trading 212 sends is kept as it
-is in `reason`. These codes are not in the spec and have not yet been confirmed against the API.
+Trading 212 refuses an order that is too small or too large for one order, and its message gives the limit:
+`must trade at least 1.33914872` for a $1 order of 0.1 shares on demo. The client recognises
+`min-quantity-exceeded` and `max-quantity-exceeded`, which demo has been seen to send, and
+`insufficient-free-for-stocks-buy`, `selling-equity-not-owned`, `market-closed` and `quantity-precision-mismatch`,
+which are not yet confirmed. Each has its own hint, and any other code is kept as it is in `reason`. The
+[errors guide](/Trading212.js/guides/errors/#orderrejectederror) has the full table.

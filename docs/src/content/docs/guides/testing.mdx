@@ -53,8 +53,11 @@ Without `instruments`, it offers Apple, Microsoft and Tesla on US markets, and V
 
 ```ts
 server.setPrice("AAPL_US_EQ", 250);
-server.marketOpen = false; // every order is refused with MarketClosed
-server.failNext("placeMarketOrder", { status: 400, body: { code: "MarketClosed" } });
+server.marketOpen = false; // every order is refused with market-closed
+server.failNext("placeMarketOrder", {
+	status: 400,
+	body: { type: "/api-errors/min-quantity-exceeded", detail: "must trade at least 2" },
+});
 server.failNext("getAccountSummary", { network: "ECONNRESET" });
 
 server.position("AAPL_US_EQ"); // the position as the API would return it, or undefined
@@ -76,7 +79,8 @@ await expect(client.orders.buy(order)).rejects.toBeInstanceOf(TradingDisabledErr
 ```
 
 <Aside>
-	The fake does not do currency conversion, fees or partial fills, and its market hours are a simple weekday schedule.
+	The fake does not do currency conversion, fees, partial fills or the smallest and largest order Trading 212 allows,
+	and its market hours are a simple weekday schedule. Its error bodies take the shape demo sends, `traceId` included.
 </Aside>
 
 ## Scripted fetch

@@ -61,10 +61,10 @@ describe("orders", () => {
 	it("turns Trading 212's refusals into named errors", async () => {
 		const { client, server } = createFakeTrading212({ state: { cash: 10 } });
 		await expect(client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 1 })).rejects.toMatchObject({
-			reason: "InsufficientFreeForStocksBuy",
+			reason: "insufficient-free-for-stocks-buy",
 		});
 		await expect(client.orders.sell({ ticker: "TSLA_US_EQ", quantity: 1 })).rejects.toMatchObject({
-			reason: "SellingEquityNotOwned",
+			reason: "selling-equity-not-owned",
 		});
 		server.marketOpen = false;
 		await expect(client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 0.01 })).rejects.toBeInstanceOf(

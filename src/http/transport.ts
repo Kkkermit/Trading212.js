@@ -228,7 +228,13 @@ export class Transport {
 		const known = isTrading212Error(error);
 		const fields = {
 			endpoint: endpoint.id,
-			...(known && { code: error.code, status: error.status, apiCode: error.apiCode, hint: error.hint }),
+			...(known && {
+				code: error.code,
+				status: error.status,
+				apiCode: error.apiCode,
+				traceId: error.traceId,
+				hint: error.hint,
+			}),
 		};
 		if (error instanceof OrderOutcomeUnknownError) {
 			this.#config.logger.warn(
