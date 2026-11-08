@@ -67,7 +67,7 @@
 		"./package.json": "./package.json"
 	},
 	"bin": {
-		"trading212": "./dist/cli.js"
+		"trading212": "dist/cli.js"
 	},
 	"files": [
 		"dist",
