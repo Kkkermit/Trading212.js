@@ -126,8 +126,8 @@ describe("the fake server", () => {
 		const stop = await client.orders.stop({ ticker: "AAPL_US_EQ", quantity: 1, stopPrice: 250, timeValidity: "DAY" });
 		expect(server.fill(stop.id ?? 0).status).toBe("FILLED");
 		expect(() => server.fill(1)).toThrow("no pending order 1");
-		await expect(client.orders.cancel(1)).rejects.toThrow("404");
-		await expect(client.orders.get(1)).rejects.toThrow("404");
+		await expect(client.orders.cancel(1)).rejects.toMatchObject({ status: 404 });
+		await expect(client.orders.get(1)).rejects.toMatchObject({ status: 404 });
 	});
 
 	/** The fake checks the library never sends API credentials to a signed download link. */

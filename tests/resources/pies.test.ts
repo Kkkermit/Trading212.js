@@ -18,9 +18,9 @@ describe("pies", () => {
 		expect((await client.pies.get(id)).settings?.name).toBe("Big tech");
 		await client.pies.delete(id);
 		await expect(client.pies.get(id)).rejects.toMatchObject({ hint: expect.stringContaining("pies.list()") });
-		await expect(client.pies.update(id, {})).rejects.toThrow("404");
-		await expect(client.pies.duplicate(id)).rejects.toThrow("404");
-		await expect(client.pies.delete(id)).rejects.toThrow("404");
+		await expect(client.pies.update(id, {})).rejects.toMatchObject({ status: 404 });
+		await expect(client.pies.duplicate(id)).rejects.toMatchObject({ status: 404 });
+		await expect(client.pies.delete(id)).rejects.toMatchObject({ status: 404 });
 		await expect(client.pies.get(0)).rejects.toBeInstanceOf(ValidationError);
 		const empty = scripted([{ body: null }]);
 		expect(await empty.client.pies.list()).toEqual([]);

@@ -143,23 +143,16 @@ function idOf(text: string): unknown {
 	}
 }
 
-const results = [];
-for (const probe of probes) {
-	if (probe.twice) await send(probe);
-	let { response, text } = await send(probe);
-	// Once a minute is all the exports endpoint allows, so a run straight after `npm run test:demo` waits its turn.
-	if (response.status === 429 && !probe.twice) {
-		console.log(`429 ${probe.name}: waiting a minute to try again`);
-		await pause(61_000);
-		({ response, text } = await send(probe));
-	}
+const results: unknown[] = [];
+function record(name: string, probe: Probe, response: Response, text: string): void {
 	const headers: Record<string, string> = {};
-	response.headers.forEach((value, name) => {
-		if (name.startsWith("x-ratelimit") || name === "content-type" || name === "retry-after") headers[name] = value;
+	response.headers.forEach((value, header) => {
+		if (header.startsWith("x-ratelimit") || header === "content-type" || header === "retry-after")
+			headers[header] = value;
 	});
 	results.push(
 		redact({
-			name: probe.name,
+			name,
 			request: `${probe.method} ${probe.path}`,
 			...(probe.body !== undefined && { sent: probe.body }),
 			status: response.status,
@@ -167,7 +160,20 @@ for (const probe of probes) {
 			body: text,
 		}),
 	);
-	console.log(`${response.status} ${probe.name}`);
+	console.log(`${response.status} ${name}`);
+}
+
+for (const probe of probes) {
+	if (probe.twice) await send(probe);
+	let { response, text } = await send(probe);
+	// Once a minute is all the exports endpoint allows, so a run straight after `npm run test:demo` waits its turn.
+	if (response.status === 429 && !probe.twice) {
+		record(`${probe.name}, rate limited`, probe, response, text);
+		console.log("    waiting a minute to try again");
+		await pause(61_000);
+		({ response, text } = await send(probe));
+	}
+	record(probe.name, probe, response, text);
 	const placed = probe.method === "POST" && response.ok ? idOf(text) : undefined;
 	if (typeof placed === "number") {
 		await pause(1500);

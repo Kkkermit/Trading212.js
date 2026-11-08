@@ -68,6 +68,25 @@ describe("credentials never leak", () => {
 		}
 	});
 
+	/** A refusal's message is rewritten from the body and the order, so both routes in are checked. */
+	it("from an order refusal that echoes them", async () => {
+		const { client } = scripted([
+			{
+				status: 400,
+				body: {
+					type: "/api-errors/min-quantity-exceeded",
+					detail: `must trade at least 2 ${API_SECRET}`,
+					traceId: API_KEY,
+				},
+			},
+		]);
+		const error = (await client.orders
+			.limit({ ticker: "AAPL_US_EQ", quantity: 1, limitPrice: 1, timeValidity: "DAY" })
+			.catch((caught: unknown) => caught)) as Trading212Error & { minQuantity?: number };
+		expect(error.minQuantity).toBe(2);
+		for (const view of [error.message, error.toLog(), error]) expect(leaks(view)).toEqual([]);
+	});
+
 	it("from a body that was not JSON", async () => {
 		const { client } = scripted([
 			{ status: 200, body: `<html>${API_SECRET}</html>` },

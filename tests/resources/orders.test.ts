@@ -65,6 +65,8 @@ describe("orders", () => {
 		});
 		await expect(client.orders.sell({ ticker: "TSLA_US_EQ", quantity: 1 })).rejects.toMatchObject({
 			reason: "selling-equity-not-owned",
+			ownedQuantity: 0,
+			message: "POST /api/v0/equity/orders/market was refused: it sells 1 TSLA_US_EQ, but the account owns 0.",
 		});
 		server.marketOpen = false;
 		await expect(client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 0.01 })).rejects.toBeInstanceOf(

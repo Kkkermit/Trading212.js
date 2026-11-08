@@ -28,10 +28,11 @@ In every mode the client corrects its budget from each response's `x-ratelimit-*
 program on the same account counts as soon as it shows. If a call would have to wait longer than
 `maxRateLimitWaitMs` (default 60 s), it throws `RateLimitError` with `retryAfterMs` instead of hanging.
 
-What demo sends, recorded in `fixtures/errors.json`: every answer, refusals included, carries `x-ratelimit-limit`,
-`x-ratelimit-period` and `x-ratelimit-remaining` and `x-ratelimit-used`, and `x-ratelimit-reset` as a Unix time in
-seconds. A 429 itself carries none of them, so the client then closes the endpoint for one whole period before it
-sends there again.
+What demo sends, recorded in `fixtures/errors.json`: answers from the order and history endpoints, refusals and 429s
+included, carry `x-ratelimit-limit`, `x-ratelimit-period`, `x-ratelimit-remaining` and `x-ratelimit-used`, and
+`x-ratelimit-reset` as a Unix time in seconds; a 429 adds `Retry-After: 0`, which the client ignores in favour of the
+reset. The exports endpoint and a refused key send none of them. When a 429 arrives without them, the client closes
+the endpoint for one whole period before it sends there again.
 
 ## Several clients, several processes
 

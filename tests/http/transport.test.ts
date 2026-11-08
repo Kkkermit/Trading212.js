@@ -341,7 +341,7 @@ describe("hooks and logging", () => {
 			["info", "POST /api/v0/equity/orders/market returned 200 in N ms"],
 			["info", "Sending POST /api/v0/equity/orders/market"],
 			["info", "POST /api/v0/equity/orders/market returned 400 in N ms"],
-			["info", expect.stringMatching(/^POST \/api\/v0\/equity\/orders\/market failed with 400/)],
+			["info", expect.stringMatching(/^POST \/api\/v0\/equity\/orders\/market was refused: the market for /)],
 		]);
 		expect(lines.at(-1)?.fields).toMatchObject({
 			endpoint: "placeMarketOrder",

@@ -102,21 +102,31 @@ public address is on its list.
 ### `OrderRejectedError`
 
 Code `order_rejected`, status 400. Trading 212 refused an order; nothing was traded. `error.reason` is Trading 212's
-code for why, and `error.message` ends with its explanation. The client knows these, each with its own `hint`:
+code for why. Its own words are terse ("invalid quantity precision 4" means at most 4 decimal places are allowed), so
+the client says it again in `error.message`, using what you sent, and puts the limit you broke on the error as a
+number your code can use. Each message starts with the request, such as
+`POST /api/v0/equity/orders/limit was refused:`, and ends like this:
 
-| Reason                             | Fix                                                                        | Confirmed on demo |
-| ---------------------------------- | -------------------------------------------------------------------------- | ----------------- |
-| `min-quantity-exceeded`            | Too small; the message gives the smallest quantity, so raise it            | Yes               |
-| `max-quantity-exceeded`            | Too large for one order; the message gives the limit, so split it          | Yes               |
-| `insufficient-free-for-stocks-buy` | Not enough free cash; check `cash.availableToTrade`                        | Not yet           |
-| `selling-equity-not-owned`         | Selling more than available; shares in pies or pending orders do not count | Not yet           |
-| `market-closed`                    | Check `exchanges.status(ticker)`                                           | Not yet           |
-| `quantity-precision-mismatch`      | More than 4 decimal places; use `truncateQuantity()`                       | Not yet           |
-| anything else                      | Trading 212's own code, passed through                                     |                   |
+- `min-quantity-exceeded`, with `error.minQuantity`: _a quantity of 0.1 is below the smallest Trading 212 accepts for
+  this order, 1.33914872._
+- `max-quantity-exceeded`, with `error.maxQuantity`: _a quantity of 1000000 is above the largest Trading 212 accepts in
+  one order, 32880._
+- `quantity-precision-mismatch`, with `error.maxDecimals`: _a quantity of 5.12345 has more decimal places than the 4
+  Trading 212 allows._
+- `selling-equity-not-owned`, with `error.ownedQuantity`: _it sells 1000 AAPL_US_EQ, but the account owns 0._
+- `insufficient-free-for-stocks-buy`: _there is not enough free cash to buy 30000 AAPL_US_EQ at 6 each._
+- `market-closed`: _the market for AAPL_US_EQ is closed._
+- Anything else: Trading 212's own code and words, as they came.
 
-The codes not yet confirmed are matched loosely, so `InsufficientFreeForStocksBuy` and
-`insufficient-free-for-stocks-buy` both give the same `reason`. A malformed order, which Trading 212 answers with
-`invalid-request` ("Invalid payload"), is a plain `ValidationError` instead: the request needs fixing, not the order.
+Each one also has its own `hint`. Every example above is what demo really answered, except `market-closed`, which
+has not been seen yet and is matched by its expected code. A number is there only when Trading 212's words gave it,
+and Trading 212's original body is always in `error.body`.
+
+<Example name="order-refused" />
+
+A malformed order, which Trading 212 answers with `invalid-request` ("Invalid payload"), is a plain `ValidationError`
+instead: the request needs fixing, not the order. The client checks every field before sending, so if one of its own
+methods meets this, Trading 212 may have changed its rules; the hint asks you to open an issue with `error.traceId`.
 
 ### `NotFoundError`
 
@@ -177,7 +187,11 @@ response there is replayed through the client by the tests:
   The last part of `type` becomes `apiCode`, `detail` ends the message, and `traceId` is kept on the error.
 
 - **A refused key (401) has an empty body**, so the error comes from the status alone.
-- **A 429 has the older shape** `{ code, context, errorMessage }`, sent as plain text and with no rate-limit headers.
+- **A refusal with nothing more to say leaves out `detail`**, as demo's refusal of CSV exports does; `title` is then
+  the explanation.
+- **A 429 has an older shape**, `{ code: "BusinessException", context: { type: "TooManyRequests" }, errorMessage }`,
+  sent as plain text. `apiCode` is then `TooManyRequests`, from `context.type`, rather than the vague
+  `BusinessException`.
 
 `parseErrorBody(text)` returns `{ apiCode, message, traceId }` from any of these, and is exported for your own use. It
 also reads `{ code, clarification }`, `{ code, message }` and plain text, so an unexpected shape still gives a useful

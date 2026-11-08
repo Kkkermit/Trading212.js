@@ -119,9 +119,9 @@ that has already gone throws `NotFoundError`. At most 50 orders may be pending p
 	recipe](/Trading212.js/recipes/#resend-an-order-safely) shows how.
 </Aside>
 
-Trading 212 refuses an order that is too small or too large for one order, and its message gives the limit:
-`must trade at least 1.33914872` for a $1 order of 0.1 shares on demo. The client recognises
-`min-quantity-exceeded` and `max-quantity-exceeded`, which demo has been seen to send, and
-`insufficient-free-for-stocks-buy`, `selling-equity-not-owned`, `market-closed` and `quantity-precision-mismatch`,
-which are not yet confirmed. Each has its own hint, and any other code is kept as it is in `reason`. The
-[errors guide](/Trading212.js/guides/errors/#orderrejectederror) has the full table.
+A refusal says in plain words what the order broke, such as
+`a quantity of 0.1 is below the smallest Trading 212 accepts for this order, 1.33914872.`, and carries the limit as a
+number: `error.minQuantity`, `error.maxQuantity`, `error.maxDecimals` or `error.ownedQuantity`. Too small, too large,
+too many decimal places, selling more than you own and not enough cash have all been seen on demo; a closed market is
+recognised by its expected code. The [errors guide](/Trading212.js/guides/errors/#orderrejectederror) has the full
+table.

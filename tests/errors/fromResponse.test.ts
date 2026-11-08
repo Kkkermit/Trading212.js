@@ -49,7 +49,7 @@ describe("parseErrorBody", () => {
 			parseErrorBody(
 				'{"code":"BusinessException","context":{"type":"TooManyRequests"},"errorMessage":"too many requests"}',
 			),
-		).toMatchObject({ apiCode: "BusinessException", message: "too many requests" });
+		).toMatchObject({ apiCode: "TooManyRequests", message: "too many requests" });
 	});
 
 	it("prints a Java Optional as its value", () => {
@@ -94,7 +94,9 @@ describe("errorFromResponse", () => {
 		expect(error).toBeInstanceOf(AuthenticationError);
 		expect((error as AuthenticationError).environment).toBe("live");
 		expect(error.hint).toContain("real-money (live)");
-		expect(error.message).toBe("GET /api/v0/equity/positions failed with 401 Unauthorized");
+		expect(error.message).toBe(
+			"GET /api/v0/equity/positions was refused: Trading 212 did not accept the API key and secret.",
+		);
 		expect(errorFromResponse(context({ status: 401 })).hint).toContain("practice (demo)");
 	});
 
@@ -194,6 +196,54 @@ describe("errorFromResponse", () => {
 	});
 });
 
+describe("error messages", () => {
+	const trade = (text: string, sent?: unknown) =>
+		errorFromResponse(context({ status: 400, text, kind: "trade", sent })).message.replace(
+			"GET /api/v0/equity/positions ",
+			"",
+		);
+
+	it("say what a refusal broke even when the order or the number is missing", () => {
+		expect(trade('{"code":"SellingEquityNotOwned"}')).toBe(
+			"was refused: it sells this instrument, more than the account owns.",
+		);
+		expect(trade('{"type":"/api-errors/min-quantity-exceeded"}')).toBe(
+			"was refused: the quantity is below the smallest Trading 212 accepts for this order.",
+		);
+		expect(
+			trade('{"type":"/api-errors/insufficient-free-for-stocks-buy"}', { ticker: "AAPL_US_EQ", quantity: 2 }),
+		).toBe("was refused: there is not enough free cash to buy 2 AAPL_US_EQ.");
+		expect(trade('{"type":"/api-errors/market-closed"}', { ticker: "AAPL_US_EQ", quantity: 1, stopPrice: 9 })).toBe(
+			"was refused: the market for AAPL_US_EQ is closed.",
+		);
+		expect(trade('{"type":"/api-errors/quantity-precision-mismatch"}', "not an order")).toBe(
+			"was refused: the quantity has more decimal places than the 4 Trading 212 allows.",
+		);
+		expect(trade('{"code":"SomethingNew","message":"Nope"}')).toBe("was refused (SomethingNew): Nope.");
+	});
+
+	/** "Failed" would invite a resend of an order that may have filled. */
+	it("never call a trade that may have run a failure", () => {
+		const error = errorFromResponse(context({ status: 502, statusText: "Bad Gateway", kind: "trade" }));
+		expect(error.message).toBe(
+			"GET /api/v0/equity/positions may or may not have gone through: Trading 212 answered 502 Bad Gateway.",
+		);
+	});
+
+	it("name the permission, the refusal or the status for everything else", () => {
+		const message = (overrides: Partial<ResponseContext>) =>
+			errorFromResponse(context(overrides)).message.replace("GET /api/v0/equity/positions ", "");
+		expect(message({ status: 403, text: "Scope( portfolio ) missing for API key" })).toBe(
+			'was refused: the API key does not have the "portfolio" permission.',
+		);
+		expect(message({ status: 403, text: "Forbidden" })).toBe("was refused: Forbidden.");
+		expect(message({ status: 404 })).toBe("failed: Trading 212 has nothing at that address.");
+		expect(message({ status: 408, statusText: "Request Timeout" })).toBe("failed with 408 Request Timeout.");
+		expect(message({ status: 503, text: "Down for maintenance." })).toBe("failed with 503: Down for maintenance.");
+		expect(message({ status: 400 })).toBe("was refused as invalid.");
+	});
+});
+
 describe("errorFromResponse outside trades", () => {
 	it("does not call a refused read an order rejection", () => {
 		const error = errorFromResponse(context({ status: 400, text: '{"code":"MarketClosed"}' }));
@@ -207,6 +257,7 @@ interface Captured {
 	readonly status: number;
 	readonly headers: Record<string, string>;
 	readonly body: string;
+	readonly sent?: unknown;
 }
 
 const captured = (
@@ -230,20 +281,26 @@ function replay(name: string, call: (client: Trading212) => Promise<unknown>): P
 }
 
 const limitOrder = { ticker: "AAPL_US_EQ", limitPrice: 1, timeValidity: "DAY" } as const;
+const PLACE = "POST /api/v0/equity/orders/limit";
 
 /** Each response here is one demo really sent (`npm run fixtures:capture`), replayed through the client. */
 describe("responses captured from demo", () => {
 	it("covers every captured response", () => {
 		expect(captured.map((result) => result.name).sort()).toEqual(
 			[
+				"above the maximum quantity",
 				"bad key",
+				"below the minimum quantity",
+				"buy more than the cash allows",
 				"cancel missing order",
 				"exports on demo",
+				"exports on demo, rate limited",
 				"extended hours on a limit order",
-				"below the minimum quantity",
+				"five decimal places",
 				"limit over 50",
 				"missing order",
-				"above the maximum quantity",
+				"sell more than owned",
+				"too many requests",
 			].sort(),
 		);
 	});
@@ -251,44 +308,95 @@ describe("responses captured from demo", () => {
 	it("a refused key, whose body is empty", async () => {
 		const error = (await replay("bad key", (client) => client.account.summary())) as AuthenticationError;
 		expect(error).toBeInstanceOf(AuthenticationError);
+		expect(error.message).toBe(
+			"GET /api/v0/equity/account/summary was refused: Trading 212 did not accept the API key and secret.",
+		);
 		expect(error.apiCode).toBeUndefined();
 	});
 
 	it("a missing order, read or cancelled, with its trace ID", async () => {
 		const read = (await replay("missing order", (client) => client.orders.get(1))) as NotFoundError;
 		expect(read).toBeInstanceOf(NotFoundError);
+		expect(read.message).toBe("GET /api/v0/equity/orders/1 failed: Order not found.");
 		expect(read.apiCode).toBe("entity-not-found");
-		expect(read.message).toMatch(/: Order not found$/);
-		expect(read.traceId).toBe("002fc4767c1b3a9e8b0ba5237bc49a2e");
+		expect(read.traceId).toBe("80c2083f26f456cb2d15e418efac439c");
 		const cancelled = await replay("cancel missing order", (client) => client.orders.cancel(1));
 		expect(cancelled).toBeInstanceOf(NotFoundError);
 		expect(cancelled).not.toBeInstanceOf(OrderOutcomeUnknownError);
 	});
 
-	it("an order below the minimum quantity", async () => {
-		const error = (await replay("below the minimum quantity", (client) =>
-			client.orders.limit({ ...limitOrder, quantity: 0.1 }),
-		)) as OrderRejectedError;
-		expect(error).toBeInstanceOf(OrderRejectedError);
-		expect(error.reason).toBe("min-quantity-exceeded");
-		expect(error.hint).toBe(ORDER_REJECTION_HINTS["min-quantity-exceeded"]);
-		expect(error.message).toMatch(/must trade at least 1\.33914872$/);
+	/** Trading 212's own words are terse, so each refusal is said again with what was sent and the limit broken. */
+	it("every order refusal, in plain words and with its number", async () => {
+		const refusals = [
+			{
+				name: "below the minimum quantity",
+				order: { ...limitOrder, quantity: 0.1 },
+				reason: "min-quantity-exceeded",
+				message: `${PLACE} was refused: a quantity of 0.1 is below the smallest Trading 212 accepts for this order, 1.33914872.`,
+				facts: { minQuantity: 1.33914872 },
+			},
+			{
+				name: "above the maximum quantity",
+				order: { ...limitOrder, quantity: -1_000_000, limitPrice: 100_000 },
+				reason: "max-quantity-exceeded",
+				message: `${PLACE} was refused: a quantity of 1000000 is above the largest Trading 212 accepts in one order, 32880.`,
+				facts: { maxQuantity: 32_880 },
+			},
+			{
+				name: "sell more than owned",
+				order: { ...limitOrder, quantity: -1000, limitPrice: 100_000 },
+				reason: "selling-equity-not-owned",
+				message: `${PLACE} was refused: it sells 1000 AAPL_US_EQ, but the account owns 0.`,
+				facts: { ownedQuantity: 0 },
+			},
+			{
+				name: "buy more than the cash allows",
+				order: { ...limitOrder, quantity: 30_000, limitPrice: 6 },
+				reason: "insufficient-free-for-stocks-buy",
+				message: `${PLACE} was refused: there is not enough free cash to buy 30000 AAPL_US_EQ at 6 each.`,
+				facts: {},
+			},
+		] as const;
+		for (const refusal of refusals) {
+			const error = (await replay(refusal.name, (client) => client.orders.limit(refusal.order))) as OrderRejectedError;
+			expect(error, refusal.name).toBeInstanceOf(OrderRejectedError);
+			expect(error.reason).toBe(refusal.reason);
+			expect(error.message).toBe(refusal.message);
+			expect(error.hint).toBe(ORDER_REJECTION_HINTS[refusal.reason]);
+			expect(error).toMatchObject(refusal.facts);
+			expect(error.traceId).toMatch(/^[0-9a-f]{32}$/);
+		}
 	});
 
-	it("an order above the maximum quantity, with the Java Optional tidied away", async () => {
-		const error = (await replay("above the maximum quantity", (client) =>
-			client.orders.limit({ ...limitOrder, quantity: -10 }),
-		)) as OrderRejectedError;
-		expect(error.reason).toBe("max-quantity-exceeded");
-		expect(error.message).toMatch(/single order is 32880$/);
-	});
-
-	it("an order whose payload Trading 212 could not accept", async () => {
-		const error = await replay("extended hours on a limit order", (client) =>
-			client.orders.limit({ ...limitOrder, quantity: 0.1 }),
+	// The client refuses 5 decimal places before sending, so this one is mapped straight from what demo was sent.
+	it("a quantity with too many decimal places", () => {
+		const response = captured.find((result) => result.name === "five decimal places");
+		const error = errorFromResponse(
+			context({
+				status: response?.status ?? 0,
+				text: response?.body ?? "",
+				kind: "trade",
+				request: { method: "POST", path: "/api/v0/equity/orders/limit", endpoint: "placeLimitOrder" },
+				sent: response?.sent,
+			}),
+		) as OrderRejectedError;
+		expect(error.reason).toBe("quantity-precision-mismatch");
+		expect(error.maxDecimals).toBe(4);
+		expect(error.message).toBe(
+			`${PLACE} was refused: a quantity of 5.12345 has more decimal places than the 4 Trading 212 allows.`,
 		);
+	});
+
+	it("an order whose fields Trading 212 could not accept", async () => {
+		const error = (await replay("extended hours on a limit order", (client) =>
+			client.orders.limit({ ...limitOrder, quantity: 5 }),
+		)) as ValidationError;
 		expect(error).toBeInstanceOf(ValidationError);
 		expect(error).not.toBeInstanceOf(OrderRejectedError);
+		expect(error.message).toBe(
+			`${PLACE} was refused as invalid: Trading 212 could not accept the fields sent ("Invalid payload").`,
+		);
+		expect(error.hint).toContain("open an issue");
 	});
 
 	it("a history page that asked for too much", async () => {
@@ -296,14 +404,33 @@ describe("responses captured from demo", () => {
 			client.history.orders.list({ limit: 50 }),
 		)) as ValidationError;
 		expect(error).toBeInstanceOf(ValidationError);
-		expect(error.message).toMatch(/Limit cannot be greater than 50$/);
+		expect(error.message).toBe(
+			"GET /api/v0/equity/history/orders was refused as invalid: Limit cannot be greater than 50.",
+		);
 	});
 
-	it("a 429 that carries no rate-limit headers", async () => {
-		const error = (await replay("exports on demo", (client) => client.reports.list())) as RateLimitError;
-		expect(error).toBeInstanceOf(RateLimitError);
-		expect(error.rateLimit).toBeUndefined();
-		expect(error.message).toMatch(/too many requests$/);
+	it("exports, which demo does not offer", async () => {
+		const error = await replay("exports on demo", (client) => client.reports.list());
+		expect(error).toBeInstanceOf(NotAvailableInDemoError);
+		expect((error as NotAvailableInDemoError).message).toBe(
+			"GET /api/v0/equity/history/exports was refused: Trading 212 does not allow this on a demo account.",
+		);
+	});
+
+	it("a 429 with rate-limit headers, and one without", async () => {
+		const withHeaders = (await replay("too many requests", (client) => client.orders.get(1))) as RateLimitError;
+		expect(withHeaders).toBeInstanceOf(RateLimitError);
+		expect(withHeaders.apiCode).toBe("TooManyRequests");
+		expect(withHeaders.message).toBe(
+			"GET /api/v0/equity/orders/1 was refused: too many requests (the limit is 1 per 1 s).",
+		);
+		expect(withHeaders.resetAt?.getTime()).toBe(1_794_098_922_000);
+		const without = (await replay("exports on demo, rate limited", (client) =>
+			client.reports.list(),
+		)) as RateLimitError;
+		expect(without).toBeInstanceOf(RateLimitError);
+		expect(without.rateLimit).toBeUndefined();
+		expect(without.message).toBe("GET /api/v0/equity/history/exports was refused: too many requests.");
 	});
 
 	it("rate-limit headers, whose reset is in Unix seconds and period in seconds", () => {
@@ -313,7 +440,7 @@ describe("responses captured from demo", () => {
 			periodMs: 1000,
 			remaining: 0,
 			used: 1,
-			resetAt: 1_794_097_875_000,
+			resetAt: 1_794_098_898_000,
 		});
 	});
 });

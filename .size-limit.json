@@ -1,5 +1,5 @@
 [
-	{ "name": "client (ESM)", "path": "dist/index.js", "import": "{ Trading212 }", "limit": "15 kB" },
+	{ "name": "client (ESM)", "path": "dist/index.js", "import": "{ Trading212 }", "limit": "16 kB" },
 	{ "name": "testing kit (ESM)", "path": "dist/testing.js", "import": "{ createFakeTrading212 }", "limit": "20 kB" },
 	{ "name": "csv (ESM)", "path": "dist/csv.js", "import": "{ parseCsv }", "limit": "1 kB" }
 ]

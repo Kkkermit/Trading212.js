@@ -163,8 +163,8 @@ const REFUSED = "Error while placing the order";
 const NOT_FOUND = "Requested entity not found";
 
 /** An error in the shape demo sends (`fixtures/errors.json`); the fake adds a `traceId` as Trading 212 does. */
-function apiError(status: number, code: string, title: string, detail: string): ScriptedResponse {
-	return { status, body: { type: `/api-errors/${code}`, title, status, detail } };
+function apiError(status: number, code: string, title: string, detail?: string): ScriptedResponse {
+	return { status, body: { type: `/api-errors/${code}`, title, status, ...(detail !== undefined && { detail }) } };
 }
 
 /**
@@ -478,7 +478,7 @@ export class FakeTrading212Server {
 		if (!Number.isFinite(quantity) || quantity === 0)
 			return apiError(400, "invalid-request", INVALID, "Invalid payload");
 		if (decimalPlaces(quantity) > 4)
-			return apiError(400, "quantity-precision-mismatch", REFUSED, "Quantity precision mismatch");
+			return apiError(400, "quantity-precision-mismatch", REFUSED, "invalid quantity precision 4");
 		if (id !== "placeMarketOrder" && "extendedHours" in body)
 			return apiError(400, "invalid-request", INVALID, "Invalid payload");
 		if (!this.marketOpen) return apiError(400, "market-closed", REFUSED, "The market is closed");
@@ -499,7 +499,12 @@ export class FakeTrading212Server {
 			return apiError(400, "insufficient-free-for-stocks-buy", REFUSED, "Insufficient funds");
 		}
 		if (!buying && -quantity > roundShares(available) + 1e-9)
-			return apiError(400, "selling-equity-not-owned", REFUSED, "Selling equity not owned");
+			return apiError(
+				400,
+				"selling-equity-not-owned",
+				REFUSED,
+				`Selling more equities than owned, owned: ${String(roundShares(available))}`,
+			);
 		const order: Order = {
 			id: this.#nextId++,
 			ticker,
@@ -610,7 +615,7 @@ export class FakeTrading212Server {
 
 	#exportsRefused(): ScriptedResponse | undefined {
 		return this.environment === "demo" && !this.exportsOnDemo
-			? apiError(403, "not-available-in-demo-account", "Not available in demo account", "Not available in demo account")
+			? apiError(403, "not-available-in-demo-account", "The action is not allowed in demo account")
 			: undefined;
 	}
 

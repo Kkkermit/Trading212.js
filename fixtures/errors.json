@@ -1,5 +1,5 @@
 {
-	"capturedAt": "2026-11-08T00:31:32.699Z",
+	"capturedAt": "2026-11-08T00:49:47.605Z",
 	"environment": "demo",
 	"results": [
 		{
@@ -20,10 +20,10 @@
 				"x-ratelimit-limit": "1",
 				"x-ratelimit-period": "1",
 				"x-ratelimit-remaining": "0",
-				"x-ratelimit-reset": "1794097875",
+				"x-ratelimit-reset": "1794098898",
 				"x-ratelimit-used": "1"
 			},
-			"body": "{\"type\":\"/api-errors/entity-not-found\",\"title\":\"Requested entity not found\",\"status\":404,\"detail\":\"Order not found\",\"traceId\":\"002fc4767c1b3a9e8b0ba5237bc49a2e\"}"
+			"body": "{\"type\":\"/api-errors/entity-not-found\",\"title\":\"Requested entity not found\",\"status\":404,\"detail\":\"Order not found\",\"traceId\":\"80c2083f26f456cb2d15e418efac439c\"}"
 		},
 		{
 			"name": "cancel missing order",
@@ -34,17 +34,17 @@
 				"x-ratelimit-limit": "50",
 				"x-ratelimit-period": "60",
 				"x-ratelimit-remaining": "49",
-				"x-ratelimit-reset": "1794097878",
+				"x-ratelimit-reset": "1794098901",
 				"x-ratelimit-used": "1"
 			},
-			"body": "{\"type\":\"/api-errors/entity-not-found\",\"title\":\"Requested entity not found\",\"status\":404,\"detail\":\"Order not found\",\"traceId\":\"5d48bfd5b90c7d18528ec92bfcd33318\"}"
+			"body": "{\"type\":\"/api-errors/entity-not-found\",\"title\":\"Requested entity not found\",\"status\":404,\"detail\":\"Order not found\",\"traceId\":\"369ef474f7cbdfdc39072aceaadfc92d\"}"
 		},
 		{
 			"name": "below the minimum quantity",
 			"request": "POST /api/v0/equity/orders/limit",
 			"sent": {
 				"ticker": "AAPL_US_EQ",
-				"quantity": 0.12345,
+				"quantity": 0.1,
 				"limitPrice": 1,
 				"timeValidity": "DAY"
 			},
@@ -54,17 +54,37 @@
 				"x-ratelimit-limit": "1",
 				"x-ratelimit-period": "2",
 				"x-ratelimit-remaining": "0",
-				"x-ratelimit-reset": "1794097881",
+				"x-ratelimit-reset": "1794098904",
 				"x-ratelimit-used": "1"
 			},
-			"body": "{\"type\":\"/api-errors/min-quantity-exceeded\",\"title\":\"Error while placing the order\",\"status\":400,\"detail\":\"must trade at least 1.33914872\",\"traceId\":\"e74f32604a3af882ca5a11f14129f39f\"}"
+			"body": "{\"type\":\"/api-errors/min-quantity-exceeded\",\"title\":\"Error while placing the order\",\"status\":400,\"detail\":\"must trade at least 1.33914872\",\"traceId\":\"523a4ed1240a1f94650c814a50c5485a\"}"
+		},
+		{
+			"name": "five decimal places",
+			"request": "POST /api/v0/equity/orders/limit",
+			"sent": {
+				"ticker": "AAPL_US_EQ",
+				"quantity": 5.12345,
+				"limitPrice": 1,
+				"timeValidity": "DAY"
+			},
+			"status": 400,
+			"headers": {
+				"content-type": "application/json",
+				"x-ratelimit-limit": "1",
+				"x-ratelimit-period": "2",
+				"x-ratelimit-remaining": "0",
+				"x-ratelimit-reset": "1794098907",
+				"x-ratelimit-used": "1"
+			},
+			"body": "{\"type\":\"/api-errors/quantity-precision-mismatch\",\"title\":\"Error while placing the order\",\"status\":400,\"detail\":\"invalid quantity precision 4\",\"traceId\":\"e0879c172fa10875402558485c96e91e\"}"
 		},
 		{
 			"name": "extended hours on a limit order",
 			"request": "POST /api/v0/equity/orders/limit",
 			"sent": {
 				"ticker": "AAPL_US_EQ",
-				"quantity": 0.1,
+				"quantity": 5,
 				"limitPrice": 1,
 				"timeValidity": "DAY",
 				"extendedHours": true
@@ -75,10 +95,10 @@
 				"x-ratelimit-limit": "1",
 				"x-ratelimit-period": "2",
 				"x-ratelimit-remaining": "0",
-				"x-ratelimit-reset": "1794097884",
+				"x-ratelimit-reset": "1794098909",
 				"x-ratelimit-used": "1"
 			},
-			"body": "{\"type\":\"/api-errors/invalid-request\",\"title\":\"The request is invalid\",\"status\":400,\"detail\":\"Invalid payload\",\"traceId\":\"15ddf0e745e33a1452010a50acd4fde8\"}"
+			"body": "{\"type\":\"/api-errors/invalid-request\",\"title\":\"The request is invalid\",\"status\":400,\"detail\":\"Invalid payload\",\"traceId\":\"9397f46de93cf5ac18d905d550be85a2\"}"
 		},
 		{
 			"name": "above the maximum quantity",
@@ -95,10 +115,50 @@
 				"x-ratelimit-limit": "1",
 				"x-ratelimit-period": "2",
 				"x-ratelimit-remaining": "0",
-				"x-ratelimit-reset": "1794097886",
+				"x-ratelimit-reset": "1794098912",
 				"x-ratelimit-used": "1"
 			},
-			"body": "{\"type\":\"/api-errors/max-quantity-exceeded\",\"title\":\"Error while placing the order\",\"status\":400,\"detail\":\"Max quantity for single order is Optional[32880]\",\"traceId\":\"4c39fb291744cdcbbc270f587627719c\"}"
+			"body": "{\"type\":\"/api-errors/max-quantity-exceeded\",\"title\":\"Error while placing the order\",\"status\":400,\"detail\":\"Max quantity for single order is Optional[32880]\",\"traceId\":\"8242b02784f6a09aea354bfd6a93afbb\"}"
+		},
+		{
+			"name": "sell more than owned",
+			"request": "POST /api/v0/equity/orders/limit",
+			"sent": {
+				"ticker": "AAPL_US_EQ",
+				"quantity": -1000,
+				"limitPrice": 100000,
+				"timeValidity": "DAY"
+			},
+			"status": 400,
+			"headers": {
+				"content-type": "application/json",
+				"x-ratelimit-limit": "1",
+				"x-ratelimit-period": "2",
+				"x-ratelimit-remaining": "0",
+				"x-ratelimit-reset": "1794098915",
+				"x-ratelimit-used": "1"
+			},
+			"body": "{\"type\":\"/api-errors/selling-equity-not-owned\",\"title\":\"Error while placing the order\",\"status\":400,\"detail\":\"Selling more equities than owned, owned: 0\",\"traceId\":\"9006446970b3ef57394e3eb7c5aa72b6\"}"
+		},
+		{
+			"name": "buy more than the cash allows",
+			"request": "POST /api/v0/equity/orders/limit",
+			"sent": {
+				"ticker": "AAPL_US_EQ",
+				"quantity": 30000,
+				"limitPrice": 6,
+				"timeValidity": "DAY"
+			},
+			"status": 400,
+			"headers": {
+				"content-type": "application/json",
+				"x-ratelimit-limit": "1",
+				"x-ratelimit-period": "2",
+				"x-ratelimit-remaining": "0",
+				"x-ratelimit-reset": "1794098917",
+				"x-ratelimit-used": "1"
+			},
+			"body": "{\"type\":\"/api-errors/insufficient-free-for-stocks-buy\",\"title\":\"Error while placing the order\",\"status\":400,\"detail\":\"Insufficient funds\",\"traceId\":\"a6f2f9bfac39c4e3d4ae306207c5dccc\"}"
 		},
 		{
 			"name": "limit over 50",
@@ -109,19 +169,44 @@
 				"x-ratelimit-limit": "20",
 				"x-ratelimit-period": "60",
 				"x-ratelimit-remaining": "19",
-				"x-ratelimit-reset": "1794097890",
+				"x-ratelimit-reset": "1794098921",
 				"x-ratelimit-used": "1"
 			},
-			"body": "{\"type\":\"/api-errors/invalid-request\",\"title\":\"The request is invalid\",\"status\":400,\"detail\":\"Limit cannot be greater than 50\",\"traceId\":\"0f277078e4e053aea311e24d3d01a51c\"}"
+			"body": "{\"type\":\"/api-errors/invalid-request\",\"title\":\"The request is invalid\",\"status\":400,\"detail\":\"Limit cannot be greater than 50\",\"traceId\":\"f8f3846d58593ce79c7b0d501e0ad1cc\"}"
 		},
 		{
-			"name": "exports on demo",
+			"name": "too many requests",
+			"request": "GET /api/v0/equity/orders/1",
+			"status": 429,
+			"headers": {
+				"content-type": "text/plain; charset=utf-8",
+				"retry-after": "0",
+				"x-ratelimit-limit": "1",
+				"x-ratelimit-period": "1",
+				"x-ratelimit-remaining": "0",
+				"x-ratelimit-reset": "1794098922",
+				"x-ratelimit-used": "1"
+			},
+			"body": "{\"code\":\"BusinessException\",\"context\":{\"type\":\"TooManyRequests\"},\"errorMessage\":\"too many requests\"}\n"
+		},
+		{
+			"name": "exports on demo, rate limited",
+			"capturedAt": "2026-11-08T00:31:32.699Z",
 			"request": "GET /api/v0/equity/history/exports",
 			"status": 429,
 			"headers": {
 				"content-type": "text/plain; charset=utf-8"
 			},
 			"body": "{\"code\":\"BusinessException\",\"context\":{\"type\":\"TooManyRequests\"},\"errorMessage\":\"too many requests\"}\n"
+		},
+		{
+			"name": "exports on demo",
+			"request": "GET /api/v0/equity/history/exports",
+			"status": 403,
+			"headers": {
+				"content-type": "application/json"
+			},
+			"body": "{\"type\":\"/api-errors/not-available-in-demo-account\",\"title\":\"The action is not allowed in demo account\",\"status\":403,\"traceId\":\"e29b60006d3426fd20a13c85e0ba0993\"}"
 		}
 	]
 }

@@ -43,7 +43,7 @@ describe("doctor", () => {
 			server.failNext("listReports", { status: 403, body: { message: "Scope( export ) missing for API key" } });
 		});
 		expect(output).toContain('✗ portfolio: not on this key (create one with "portfolio" ticked)');
-		expect(output).toContain("⚠ orders:read: GET /api/v0/equity/orders failed with 400");
+		expect(output).toContain("⚠ orders:read: GET /api/v0/equity/orders was refused as invalid.");
 		expect(output).toContain("✗ exports: not on this key");
 	});
 

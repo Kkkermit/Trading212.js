@@ -214,10 +214,31 @@ export type OrderRejectionReason =
 export class OrderRejectedError extends ValidationError {
 	static override readonly kind = "OrderRejectedError";
 	readonly reason: OrderRejectionReason;
+	/** The smallest quantity Trading 212 accepts for this order, read from a `min-quantity-exceeded` refusal. */
+	readonly minQuantity: number | undefined;
+	/** The largest quantity it accepts in one order, read from a `max-quantity-exceeded` refusal. */
+	readonly maxQuantity: number | undefined;
+	/** The most decimal places a quantity may have, read from a `quantity-precision-mismatch` refusal. */
+	readonly maxDecimals: number | undefined;
+	/** How many shares Trading 212 says the account owns, read from a `selling-equity-not-owned` refusal. */
+	readonly ownedQuantity: number | undefined;
 
-	constructor(message: string, details: ErrorDetails & { reason: OrderRejectionReason }) {
+	constructor(
+		message: string,
+		details: ErrorDetails & {
+			reason: OrderRejectionReason;
+			minQuantity?: number;
+			maxQuantity?: number;
+			maxDecimals?: number;
+			ownedQuantity?: number;
+		},
+	) {
 		super(message, details, "order_rejected");
 		this.reason = details.reason;
+		this.minQuantity = details.minQuantity;
+		this.maxQuantity = details.maxQuantity;
+		this.maxDecimals = details.maxDecimals;
+		this.ownedQuantity = details.ownedQuantity;
 	}
 }
 

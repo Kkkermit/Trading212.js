@@ -12,6 +12,8 @@ export const HINTS = {
 		"The key is not allowed to do this. If the key is restricted to IP addresses, check that this machine's public address is on its list.",
 	validation:
 		"Trading 212 rejected the request as invalid. `error.body` holds its explanation, and `error.issues` any field problems found before sending.",
+	invalidOrder:
+		"Trading 212 could not accept the fields of this order. The client checks them before sending, so if one of its methods sent it, Trading 212 may have changed its rules: please open an issue with `error.traceId`.",
 	timeout: (kind: EndpointKind): string =>
 		kind === "read"
 			? "Trading 212 did not answer in time. Reads are retried automatically; this one ran out of attempts."
@@ -36,9 +38,9 @@ export const HINTS = {
 
 export const ORDER_REJECTION_HINTS = {
 	"min-quantity-exceeded":
-		"The quantity is below the smallest Trading 212 accepts for this order, which the error message gives. Raise the quantity.",
+		"The order is too small. Raise the quantity to at least `error.minQuantity`, the smallest Trading 212 accepts for it.",
 	"max-quantity-exceeded":
-		"The quantity is above the largest Trading 212 accepts in one order, which the error message gives. Split it into smaller orders.",
+		"The order is too large for one order. Split it into orders of at most `error.maxQuantity` each.",
 	"insufficient-free-for-stocks-buy":
 		"Not enough free cash for this buy. Check `cash.availableToTrade` in `account.summary()`; cash reserved for pending orders or held in pies does not count.",
 	"selling-equity-not-owned":
