@@ -1,8 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { runInNewContext, Script } from "node:vm";
 
 import { describe, expect, it } from "vitest";
 
+import { toCommonJs } from "../docs/src/lib/commonjs";
 import * as csv from "../src/csv";
 import * as main from "../src/index";
 import * as testing from "../src/testing";
@@ -67,5 +69,44 @@ describe("documentation", () => {
 		];
 		const missing = expected.filter((name) => !methodsPage.includes(`### \`${name}()\``));
 		expect(missing).toEqual([]);
+	});
+});
+
+const examplesDir = join(root, "docs/src/examples");
+const examples = readdirSync(examplesDir).filter((file) => file.endsWith(".ts") && !file.endsWith(".d.ts"));
+
+describe("the JavaScript beside each example", () => {
+	/** Every JavaScript tab is CommonJS: require(), and no top-level await, which a CommonJS file cannot parse. */
+	it("is CommonJS that Node can parse, for every example", async () => {
+		const failures: string[] = [];
+		for (const file of examples) {
+			const javascript = await toCommonJs(readFileSync(join(examplesDir, file), "utf8"));
+			try {
+				new Script(javascript, { filename: file.replace(/\.ts$/, ".cjs") });
+			} catch (error) {
+				failures.push(`${file}: ${(error as Error).message}`);
+			}
+			if (/^\s*(import|export)\s/m.test(javascript)) failures.push(`${file}: still has import or export`);
+		}
+		expect(failures).toEqual([]);
+	});
+
+	it("runs, with require() giving it the library", async () => {
+		const javascript = await toCommonJs(readFileSync(join(examplesDir, "try-offline.ts"), "utf8"));
+		const modules: Record<string, unknown> = {
+			"@kkkermit/trading212.js": main,
+			"@kkkermit/trading212.js/testing": testing,
+		};
+		const lines: string[] = [];
+		const finished = runInNewContext(javascript, {
+			require: (id: string) => modules[id],
+			console: {
+				log: (...parts: unknown[]) => lines.push(parts.join(" ")),
+				error: (...parts: unknown[]) => lines.push(`error: ${parts.join(" ")}`),
+			},
+			process: { exitCode: undefined },
+		}) as Promise<void>;
+		await finished;
+		expect(lines.at(-1)).toMatch(/^Cash left: /);
 	});
 });

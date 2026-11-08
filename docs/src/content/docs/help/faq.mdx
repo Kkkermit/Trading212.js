@@ -12,8 +12,9 @@ VS Code still show every option and field as you type.
 
 ### Does it work with `require()`?
 
-Yes. `const { Trading212 } = require("@kkkermit/trading212.js")` works in CommonJS. Because CommonJS has no top-level
-`await`, put your code in an `async function main() { … }` and call `main()`.
+Yes. Every JavaScript example in these docs is CommonJS: `const { Trading212 } = require("@kkkermit/trading212.js")`,
+with the code that waits for Trading 212 inside an `async function main() { … }`, because CommonJS has no top-level
+`await`. Save it as a `.cjs` file and run it with `node`.
 
 ### Can I use it in a browser, or in React?
 
@@ -34,7 +35,7 @@ first steps of [Getting started](/Trading212.js/getting-started/) use it.
 ### `ConfigurationError: T212_ENV is not set`
 
 `Trading212.fromEnv()` reads `T212_ENV`, `T212_API_KEY` and `T212_API_SECRET`, and Node does not load `.env` by
-itself. Run with `node --env-file=.env app.mjs`, or set the variables in your shell or host.
+itself. Run with `node --env-file=.env app.cjs`, or set the variables in your shell or host.
 
 ### `AuthenticationError`
 

@@ -61,8 +61,8 @@ The first two steps need no Trading 212 account at all. New to trading APIs, or 
 2.  **Try it without a key.**
 
     The fake Trading 212 in `@kkkermit/trading212.js/testing` is the real client talking to an in-memory account, so
-    you can see how everything behaves first. Save this as `try.mjs` (or `try.ts`) and run it with `node try.mjs`
-    (or `npx tsx try.ts`):
+    you can see how everything behaves first. Save the JavaScript as `try.cjs` and run it with `node try.cjs`, or
+    the TypeScript as `try.mts` and run it with `npx tsx try.mts`:
 
     <Example name="try-offline" file="try" />
 
@@ -115,26 +115,7 @@ The first two steps need no Trading 212 account at all. New to trading APIs, or 
 
     <Tabs syncKey="runtime">
 
-    <TabItem label="Node (ESM)">
-
-        ```sh
-        node --env-file=.env app.mjs
-        ```
-
-        </TabItem>
-
-    <TabItem label="Node (CommonJS)">
-
-        ```js title="app.cjs"
-        const { Trading212 } = require("@kkkermit/trading212.js");
-
-        async function main() {
-        	const t212 = Trading212.fromEnv();
-        	console.log(await t212.verify());
-        }
-
-        main();
-        ```
+    <TabItem label="Node">
 
         ```sh
         node --env-file=.env app.cjs
@@ -147,7 +128,7 @@ The first two steps need no Trading 212 account at all. New to trading APIs, or 
         Types are included. Run with [tsx](https://tsx.is), or compile with `tsc`:
 
         ```sh
-        npx tsx --env-file=.env app.ts
+        npx tsx --env-file=.env app.mts
         ```
 
         </TabItem>
@@ -157,7 +138,7 @@ The first two steps need no Trading 212 account at all. New to trading APIs, or 
         Bun loads `.env` by itself:
 
         ```sh
-        bun app.ts
+        bun app.mts
         ```
 
         </TabItem>
@@ -167,7 +148,7 @@ The first two steps need no Trading 212 account at all. New to trading APIs, or 
         Import from `npm:@kkkermit/trading212.js`, then:
 
         ```sh
-        deno run --allow-net --allow-env --env-file=.env app.ts
+        deno run --allow-net --allow-env --env-file=.env app.mts
         ```
 
         </TabItem>

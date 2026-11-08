@@ -1,9 +1,10 @@
 ---
 // Shows one example from src/examples in TypeScript and JavaScript. The TypeScript file is the only copy: it is
-// type-checked against the library, and the JavaScript is generated from it here, so the two can never disagree.
+// type-checked against the library, and the CommonJS JavaScript is generated from it here, so the two never disagree.
 import { Code, TabItem, Tabs } from "@astrojs/starlight/components";
 import { format } from "prettier";
-import ts from "typescript";
+
+import { PRETTIER, toCommonJs } from "../lib/commonjs";
 
 interface Props {
 	/** The file name in src/examples, without `.ts`. */
@@ -17,30 +18,15 @@ const { name, file = name } = Astro.props;
 const source = sources[`../examples/${name}.ts`];
 if (source === undefined) throw new Error(`There is no example called "${name}" in src/examples.`);
 
-// The compiler drops blank lines, so each one is marked first and put back afterwards.
-const BLANK = "/*blank*/";
-const marked = source
-	.split("\n")
-	.map((line) => (line.trim() === "" ? BLANK : line))
-	.join("\n");
-const emitted = ts.transpileModule(marked, {
-	compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.ESNext, verbatimModuleSyntax: true },
-}).outputText;
-const options = { useTabs: true, printWidth: 90, trailingComma: "all", arrowParens: "always" } as const;
-const javascript = (await format(emitted, { ...options, parser: "babel" }))
-	.split("\n")
-	.map((line) => (line.trim() === BLANK ? "" : line))
-	.join("\n")
-	.replace(/\n{3,}/g, "\n\n")
-	.trim();
-const typescript = (await format(source, { ...options, parser: "typescript" })).trim();
+const javascript = await toCommonJs(source);
+const typescript = (await format(source, { ...PRETTIER, parser: "typescript" })).trim();
 ---
 
 <Tabs syncKey="language">
 	<TabItem label="TypeScript" icon="seti:typescript">
-		<Code code={typescript} lang="ts" title={`${file}.ts`} />
+		<Code code={typescript} lang="ts" title={`${file}.mts`} />
 	</TabItem>
 	<TabItem label="JavaScript" icon="seti:javascript">
-		<Code code={javascript} lang="js" title={`${file}.mjs`} />
+		<Code code={javascript} lang="js" title={`${file}.cjs`} />
 	</TabItem>
 </Tabs>

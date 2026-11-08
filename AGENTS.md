@@ -102,6 +102,10 @@ docs/                     the documentation site (Astro Starlight); pages are MD
 - Examples live in `docs/src/examples` as TypeScript, type-checked against the source by `npm run typecheck`. A page
   shows one with `<Example name="…" />`, which generates the JavaScript tab from the TypeScript at build time, so
   write an example once and never by hand in both languages. Keep blank lines out of template literals in them.
+- The JavaScript tab is CommonJS for ES2022, made by `docs/src/lib/commonjs.ts`: `require()` for each import, and an
+  `async function main()` around code that awaits at the top level. So an example cannot export anything, and may
+  only import what `require()` can load (Vitest cannot be required; the testing example uses `node:test`). The tabs are
+  titled `.mts` and `.cjs`, the names that run as written in any project, and `tests/docs.test.ts` checks every one.
 - `tests/docs.test.ts` fails when an export, an exported type or a client method is not documented. A new method
   gets its own heading in `reference/methods.mdx`, written as the method name and brackets in code, the way
   `orders.buy()` is.
