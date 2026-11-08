@@ -14,9 +14,11 @@ To try a change the way a user would, run an example against the source with
 `npm run example examples/try-it-offline.ts`, or build and install the package into another project:
 
 ```sh
-npm run build && npm pack
-cd ../your-project && npm install ../trading212.js/kkkermit-trading212.js-0.0.0.tgz
+npm pack
+cd ../your-project && npm install ../Trading212.js/kkkermit-trading212.js-<version>.tgz
 ```
+
+`npm pack` builds `dist/` first, so the package always holds the current code.
 
 Maintainers: [RELEASING.md](RELEASING.md) covers publishing to npm and deploying the docs.
 
