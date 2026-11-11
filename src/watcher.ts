@@ -144,6 +144,7 @@ export class Watcher<E extends { readonly type: string }> implements AsyncIterab
 			next: () => queue.next(),
 			return: () => {
 				this.#queues.delete(queue);
+				queue.end();
 				this.stop();
 				return Promise.resolve({ value: undefined, done: true });
 			},
@@ -164,10 +165,11 @@ export class Watcher<E extends { readonly type: string }> implements AsyncIterab
 				if (signal.aborted) return;
 				const failure = error instanceof Error ? error : new Error(String(error));
 				const willRetry = willPass(error);
+				// Set first, so a listener that stops the watcher on this event still leaves loops to throw it.
+				if (!willRetry) this.#failure = { error: failure };
 				this.#emit({ type: "error", error: failure, willRetry }, willRetry);
 				if (!willRetry) {
 					this.#logger.warn(`The watcher stopped: ${failure.message}`, { code: (error as { code?: unknown }).code });
-					this.#failure = { error: failure };
 					this.stop();
 					return;
 				}
@@ -183,6 +185,7 @@ export class Watcher<E extends { readonly type: string }> implements AsyncIterab
 	#emit(event: E | WatchErrorEvent, toLoops: boolean): void {
 		if (toLoops) for (const queue of this.#queues) queue.push(event);
 		for (const listener of this.#listeners.get(event.type) ?? []) {
+			if (this.stopped) return;
 			try {
 				void Promise.resolve((listener as WatchListener<typeof event>)(event)).catch(this.#listenerFailed);
 			} catch (error) {

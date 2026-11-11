@@ -119,6 +119,7 @@ export class Trading212 {
 			fetch: fetchImpl,
 			timeoutMs: resolved.timeoutMs,
 			logger,
+			maxOpenQuantities: new Map(),
 		};
 		this.account = new AccountResource(context);
 		this.positions = new PositionsResource(context);

@@ -201,14 +201,18 @@ describe("cancelAll", () => {
 		expect(await client.orders.list()).toEqual([]);
 	});
 
-	it("reports a failed cancellation in its result and carries on", async () => {
+	/** A cancellation that may have run must not be reported as one that certainly failed. */
+	it("reports each failure in its result, an unknown outcome as unknown, and carries on", async () => {
 		const { client, server } = createFakeTrading212();
 		await client.orders.limit(limit);
 		await client.orders.limit(limit);
+		await client.orders.limit(limit);
 		server.failNext("cancelOrder", { status: 500, body: "boom" });
-		const [first, second] = await client.orders.cancelAll();
-		expect(first).toMatchObject({ status: "failed", error: { code: "outcome_unknown" } });
-		expect(second?.status).toBe("requested");
+		server.failNext("cancelOrder", { status: 400, body: { type: "/api-errors/invalid-request", title: "No" } });
+		const [first, second, third] = await client.orders.cancelAll();
+		expect(first).toMatchObject({ status: "unknown", error: { code: "outcome_unknown" } });
+		expect(second).toMatchObject({ status: "failed", error: { code: "validation" } });
+		expect(third?.status).toBe("requested");
 	});
 
 	it("stops before cancelling anything when trading is off", async () => {
@@ -276,6 +280,34 @@ describe("findAfterUnknown", () => {
 		expect(await client.orders.findAfterUnknown(error)).toEqual({ status: "not-found" });
 	});
 
+	/** The spec does not say how a sell's quantity is listed, so a negative one must still be recognised. */
+	it("finds a sell whether Trading 212 lists its quantity as positive or negative", async () => {
+		const { client, server } = createFakeTrading212({ state: { positions: [{ ticker: "AAPL_US_EQ", quantity: 5 }] } });
+		await client.orders.sell({ ticker: "AAPL_US_EQ", quantity: 2 });
+		const listed = server.orderHistory[0]?.order;
+		if (listed) listed.quantity = -2;
+		const error = new OrderOutcomeUnknownError("lost", {
+			request: { method: "POST", path: "/api/v0/equity/orders/market", endpoint: "placeMarketOrder" },
+			sent: { ticker: "AAPL_US_EQ", quantity: -2 },
+			sentAt: Date.now(),
+		});
+		expect(await client.orders.findAfterUnknown(error)).toMatchObject({ status: "found", order: { side: "SELL" } });
+	});
+
+	/** A detail listed differently from what was sent must make the answer unclear, never "not found". */
+	it("cannot tell when a recent order is like it but differs in a detail", async () => {
+		const { client, server, error } = await lostAnswer();
+		const listed = server.orderHistory[0]?.order;
+		if (listed) Object.assign(listed, { initiatedFrom: "WEB" });
+		expect(await client.orders.findAfterUnknown(error)).toMatchObject({
+			status: "unclear",
+			reason: "1 recent order is like it, but not the same",
+			matches: [{ initiatedFrom: "WEB" }],
+		});
+		if (listed) Object.assign(listed, { initiatedFrom: "API", quantity: 3 });
+		expect((await client.orders.findAfterUnknown(error)).status).toBe("unclear");
+	});
+
 	it("cannot tell when several recent orders match", async () => {
 		const { client, error } = await lostAnswer();
 		await client.orders.buy(buy);
@@ -317,7 +349,7 @@ describe("findAfterUnknown", () => {
 });
 
 describe("the maxOpenQuantity check", () => {
-	it("refuses an order above the cached limit without sending it", async () => {
+	it("refuses an order above the limit in the instrument list it has loaded, without sending it", async () => {
 		const { client, server } = createFakeTrading212({ state: { cash: 10_000_000 } });
 		await client.instruments.list();
 		server.requests.length = 0;
@@ -330,9 +362,15 @@ describe("the maxOpenQuantity check", () => {
 		);
 		expect(server.requests).toHaveLength(0);
 		await client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 10_000 });
+
+		// A refreshed list brings the new limit with it.
+		const apple = server.instruments.find((instrument) => instrument.ticker === "AAPL_US_EQ");
+		if (apple) apple.maxOpenQuantity = 20_000;
+		await client.instruments.list({ refresh: true });
+		await client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 15_000 });
 	});
 
-	it("never downloads the instrument list for it, and lets Trading 212 decide when it is not cached", async () => {
+	it("never downloads the instrument list for it, and lets Trading 212 decide when it is not loaded", async () => {
 		const { client, server } = createFakeTrading212({ state: { cash: 10_000_000 } });
 		await expect(client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 10_001 })).rejects.toMatchObject({
 			reason: "max-quantity-exceeded",

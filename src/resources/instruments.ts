@@ -46,11 +46,6 @@ function matchScore(instrument: Instrument, query: string): number {
 	return 0;
 }
 
-/** Where the instrument list is cached for one account. */
-export function instrumentsCacheKey(namespace: string): string {
-	return `${namespace}:instruments`;
-}
-
 // An entry without a ticker cannot be traded or looked up, so it is left out.
 function hasTicker(instrument: TradableInstrument): instrument is Instrument {
 	return typeof instrument.ticker === "string" && instrument.ticker !== "";
@@ -64,6 +59,7 @@ function passesFilters(instrument: Instrument, options: { type?: string; currenc
 
 export class InstrumentsResource {
 	readonly #context: ResourceContext;
+	#indexed: readonly Instrument[] | undefined;
 
 	constructor(context: ResourceContext) {
 		this.#context = context;
@@ -78,14 +74,27 @@ export class InstrumentsResource {
 	async list(options: ListOptions = {}): Promise<Instrument[]> {
 		const { refresh = false, signal } = options;
 		const { cache, cacheNamespace, metadataTtlMs, transport } = this.#context;
-		return cache.load(
-			instrumentsCacheKey(cacheNamespace),
+		const instruments = await cache.load(
+			`${cacheNamespace}:instruments`,
 			{ ttlMs: metadataTtlMs, refresh, signal, accept: isList<Instrument> },
 			async () => {
 				const { data } = await transport.request<TradableInstrument[] | undefined>(ENDPOINTS.listInstruments);
 				return Array.isArray(data) ? data.filter(hasTicker) : [];
 			},
 		);
+		this.#indexLimits(instruments);
+		return instruments;
+	}
+
+	/** Keeps each instrument's `maxOpenQuantity` where orders can check it without loading the list again. */
+	#indexLimits(instruments: readonly Instrument[]): void {
+		if (instruments === this.#indexed) return;
+		this.#indexed = instruments;
+		const limits = this.#context.maxOpenQuantities;
+		limits.clear();
+		for (const { ticker, maxOpenQuantity } of instruments) {
+			if (typeof maxOpenQuantity === "number" && maxOpenQuantity > 0) limits.set(ticker, maxOpenQuantity);
+		}
 	}
 
 	/**

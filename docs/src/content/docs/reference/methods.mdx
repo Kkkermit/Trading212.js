@@ -137,8 +137,8 @@ waitUntilOpen(ticker: string | TradableInstrument, options?: WaitUntilOpenOption
 
 Resolves with the market's status once it opens, or straight away if it is open now. It sleeps until the opening the
 schedule gives rather than checking over and over. `WaitUntilOpenOptions` adds `timeoutMs` to `OpenOptions`: with
-one, it throws `TimeoutError` straight away if the market opens after that, and there is no limit without one. Stop
-it early with `signal`.
+one, it throws `TimeoutError` straight away if the market opens after that, and there is no limit without one. When
+the schedule does not say when it opens, it checks again every hour until the timeout. Stop it early with `signal`.
 
 ## Orders
 
@@ -267,8 +267,9 @@ cancelAll(options?: CancelAllOptions): Promise<CancelResult[]>
 
 Cancels every working order, or one ticker's with `{ ticker }`, one request each in turn, and returns a
 `CancelResult` per order: `requested` when Trading 212 accepted the cancellation (it may still fill first), `gone`
-when the order had already filled or been cancelled, or `failed` with the `error`. A failure does not stop the rest.
-Throws `TradingDisabledError` before cancelling anything when trading is off.
+when the order had already filled or been cancelled, `unknown` with an `OrderOutcomeUnknownError` when it may or may
+not have arrived, or `failed` with the `error`. A failure does not stop the rest. Throws `TradingDisabledError`
+before cancelling anything when trading is off, and the signal's reason when it aborts, before the next order.
 
 ### `orders.findAfterUnknown()`
 
@@ -282,11 +283,12 @@ history, and never sends anything. The `OrderSearchResult` is one of:
 - `{ status: "found", order, where }`: it reached Trading 212, so do not send it again. `where` is `pending` or
   `history`; check `order.status`, as it may have been rejected.
 - `{ status: "not-found" }`: nothing like it is working or in the recent history.
-- `{ status: "unclear", reason, matches }`: more than one order matches, or the history is too busy to search back
-  far enough, so it cannot say.
+- `{ status: "unclear", reason, matches }`: several orders match, one is like it but differs in a detail, or the
+  history is too busy to search back far enough, so it cannot say.
 
 An order matches when its ticker, direction, type, quantity and prices are those sent, and it was created within
-`windowMs` (default 5 minutes) of the error's `sentAt`. Throws `ValidationError` for an error that did not come
+`windowMs` (default 5 minutes) of the error's `sentAt`. One with the same ticker, direction and time that differs in
+another detail makes the answer `unclear`, never `not-found`. Throws `ValidationError` for an error that did not come
 from placing an order. Needs `orders:read` and `history:orders`.
 
 ## History

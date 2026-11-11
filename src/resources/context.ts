@@ -14,4 +14,6 @@ export interface ResourceContext {
 	readonly timeoutMs: number;
 	/** The client's logger, already redacting. */
 	readonly logger: Logger;
+	/** Each instrument's `maxOpenQuantity`, from the last instrument list this client loaded. */
+	readonly maxOpenQuantities: Map<string, number>;
 }

@@ -87,6 +87,32 @@ describe("watch.orders", () => {
 		await done;
 	});
 
+	/** An order the pending list leaves out for one check is still the same order when it comes back. */
+	it("does not report an order as placed again when it is missing from one check", async () => {
+		const { client, server, started } = fake();
+		const order = await client.orders.limit(limit);
+		const watcher = client.watch.orders({ intervalMs: 20 });
+		const { events, done } = record(watcher);
+		await started(2);
+		const checks = () => server.requests.filter((request) => request.path.endsWith("/equity/orders")).length;
+		const entry = server.pending.get(order.id ?? 0);
+		server.pending.delete(order.id ?? 0);
+		const before = checks();
+		await vi.waitFor(
+			() => {
+				expect(checks()).toBe(before + 1);
+			},
+			{ interval: 1 },
+		);
+		if (entry) server.pending.set(order.id ?? 0, entry);
+		await vi.waitFor(() => {
+			expect(checks()).toBeGreaterThan(before + 3);
+		});
+		watcher.stop();
+		await done;
+		expect(events).toEqual([]);
+	});
+
 	it("stops, and throws from the loop, when the key cannot read the history", async () => {
 		const { client, server } = fake();
 		server.failNext("listHistoricalOrders", {

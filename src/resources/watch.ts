@@ -143,7 +143,8 @@ class OrderTracker {
 		for (const [id, order] of current) {
 			if (this.#settled.has(id)) continue;
 			const type = settledType(order);
-			const before = previous.get(id);
+			// An order missing from one check and back in the next is the same order, not a new one.
+			const before = previous.get(id) ?? left.get(id)?.order;
 			if (type) {
 				this.#settled.add(id);
 				events.push({ type, order, fill: undefined });

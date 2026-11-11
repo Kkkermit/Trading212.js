@@ -190,7 +190,7 @@ const trader = new Trading212({ environment: "live", apiKey, apiSecret, trading:
   convention, where a negative quantity sells.
 - **Orders are checked before sending:** a ticker without spaces, at most 4 decimal places, a positive price,
   `timeValidity` stated, `extendedHours` on market orders only, and no more than the instrument's `maxOpenQuantity`
-  when the instrument list is cached. Every problem is reported at once.
+  once the client has loaded the instrument list. Every problem is reported at once.
 
 ## Errors
 

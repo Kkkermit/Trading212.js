@@ -75,6 +75,38 @@ describe("Watcher", () => {
 		await expect(take(source, 1)).rejects.toBeInstanceOf(MissingScopeError);
 	});
 
+	it("still throws from a loop when an error listener stops the watcher itself", async () => {
+		const source = watcher(scriptedPoll(missingScope()));
+		source.on("error", ({ willRetry }) => {
+			if (!willRetry) source.stop();
+		});
+		await expect(take(source, 1)).rejects.toBeInstanceOf(MissingScopeError);
+	});
+
+	it("calls no further listener for an event once one of them stops the watcher", async () => {
+		const source = watcher(scriptedPoll([tick(1)]));
+		const heard: string[] = [];
+		source.on("tick", () => {
+			heard.push("a");
+			source.stop();
+		});
+		source.on("tick", () => {
+			heard.push("b");
+		});
+		await vi.waitFor(() => {
+			expect(source.stopped).toBe(true);
+		});
+		expect(heard).toEqual(["a"]);
+	});
+
+	it("ends a loop's waiting next() when the loop is left", async () => {
+		const source = watcher(scriptedPoll());
+		const iterator = source[Symbol.asyncIterator]();
+		const waiting = iterator.next();
+		await iterator.return?.();
+		expect(await waiting).toEqual({ value: undefined, done: true });
+	});
+
 	it("stops on an error that is not the library's, which a retry would only repeat", async () => {
 		const source = watcher(scriptedPoll(new TypeError("a bug")));
 		await expect(take(source, 1)).rejects.toThrow("a bug");
