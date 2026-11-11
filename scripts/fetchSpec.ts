@@ -22,7 +22,11 @@ try {
 } catch {
 	// First fetch.
 }
-const unchanged = previous && JSON.stringify(JSON.parse(previous)) === JSON.stringify(spec);
+// An unchanged spec leaves both files alone, so a new fetch date is never mistaken for a new spec.
+if (previous && JSON.stringify(JSON.parse(previous)) === JSON.stringify(spec)) {
+	console.log("The spec has not changed.");
+	process.exit(0);
+}
 writeFileSync(SPEC, json);
 const sha = createHash("sha256").update(json).digest("hex");
 const date = new Date().toISOString().slice(0, 10);
@@ -42,6 +46,4 @@ workflow does the same and opens a pull request when anything changed. Check \`o
 any entry the spec has caught up with.
 `,
 );
-console.log(
-	unchanged ? "The spec has not changed." : `Updated the spec (sha256 ${sha.slice(0, 12)}). Run npm run generate.`,
-);
+console.log(`Updated the spec (sha256 ${sha.slice(0, 12)}). Run npm run generate.`);

@@ -37,7 +37,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE: ${{ github.event.repository.default_branch }}
         run: |
-          if git diff --quiet -- openapi src; then
+          # Only the spec and the code generated from it count; SOURCE.md alone is not a change.
+          if git diff --quiet -- openapi/trading212.json src; then
             echo "The spec has not changed."
             exit 0
           fi
