@@ -187,9 +187,10 @@ export class ExchangesResource {
 		const timeoutMs = durationOption(given, "timeoutMs");
 		const deadline = timeoutMs === undefined ? Number.POSITIVE_INFINITY : Date.now() + timeoutMs;
 		for (;;) {
-			const now = Date.now();
-			const status = await this.status(ticker, new Date(now), list);
+			const status = await this.status(ticker, new Date(), list);
 			if (isOpenIn(status, extendedHours)) return status;
+			// Read after the check, which can wait for rate-limit budget, so the sleep does not overshoot the opening.
+			const now = Date.now();
 			const opens = (extendedHours ? status.next?.at : undefined) ?? status.nextOpen;
 			if (opens && opens.getTime() > deadline) {
 				throw new TimeoutError(

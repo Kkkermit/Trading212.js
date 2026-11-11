@@ -49,7 +49,7 @@ export interface RateLimitWaitEvent {
 }
 
 export interface RequestErrorEvent extends RequestEvent {
-	/** The error the call throws, after any retries. `attempt` is 0 when it was refused before sending. */
+	/** The error the call throws, after any retries. `attempt` is the one it failed on, or 0 when none was started. */
 	readonly error: Trading212Error;
 }
 

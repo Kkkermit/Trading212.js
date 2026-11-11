@@ -283,8 +283,8 @@ history, and never sends anything. The `OrderSearchResult` is one of:
 - `{ status: "found", order, where }`: it reached Trading 212, so do not send it again. `where` is `pending` or
   `history`; check `order.status`, as it may have been rejected.
 - `{ status: "not-found" }`: nothing like it is working or in the recent history.
-- `{ status: "unclear", reason, matches }`: several orders match, one is like it but differs in a detail, or the
-  history is too busy to search back far enough, so it cannot say.
+- `{ status: "unclear", reason, matches }`: several orders match, one is like it but differs in a detail, or nothing
+  matches in the 200 newest orders for the ticker but its history goes further back, so it cannot say.
 
 An order matches when its ticker, direction, type, quantity and prices are those sent, and it was created within
 `windowMs` (default 5 minutes) of the error's `sentAt`. One with the same ticker, direction and time that differs in

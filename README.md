@@ -189,8 +189,8 @@ const trader = new Trading212({ environment: "live", apiKey, apiSecret, trading:
   sale into a purchase. The low-level `market()`, `limit()`, `stop()` and `stopLimit()` follow the API's
   convention, where a negative quantity sells.
 - **Orders are checked before sending:** a ticker without spaces, at most 4 decimal places, a positive price,
-  `timeValidity` stated, `extendedHours` on market orders only, and no more than the instrument's `maxOpenQuantity`
-  once the client has loaded the instrument list. Every problem is reported at once.
+  `timeValidity` stated, `extendedHours` on market orders only, and a buy of no more than the instrument's
+  `maxOpenQuantity` once the client has loaded the instrument list. Every problem is reported at once.
 
 ## Errors
 

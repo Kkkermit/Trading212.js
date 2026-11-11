@@ -478,8 +478,8 @@ export class OrdersResource {
 	/**
 	 * After an order threw `OrderOutcomeUnknownError`, looks for it among the pending orders and the recent history,
 	 * matching the ticker, direction, type, quantity and prices of what was sent. It never sends anything, so whether
-	 * to place the order again stays your decision. Trading 212 may take a moment to list a new order, so give it a
-	 * few seconds before deciding it was not placed.
+	 * to place the order again stays your decision. Trading 212 does not say how long a new order takes to appear in
+	 * its lists, so wait a few seconds and look twice before deciding it was not placed.
 	 *
 	 * Scope `orders:read` and `history:orders`.
 	 *
@@ -498,13 +498,6 @@ export class OrdersResource {
 		const searched = await this.#searchHistory(candidates, sent, windowMs, call);
 		const { same, similar } = candidates;
 		const [only] = same;
-		if (!searched) {
-			return {
-				status: "unclear",
-				reason: "the history holds too many recent orders to search",
-				matches: [...same, ...similar],
-			};
-		}
 		if (same.length === 1 && only) {
 			return { status: "found", order: only, where: pending.includes(only) ? "pending" : "history" };
 		}
@@ -514,6 +507,14 @@ export class OrdersResource {
 				status: "unclear",
 				reason: `${similar.length} recent ${similar.length === 1 ? "order is" : "orders are"} like it, but not the same`,
 				matches: similar,
+			};
+		}
+		// More pages could only add matches, so only an answer of "not found" needs the whole history.
+		if (!searched) {
+			return {
+				status: "unclear",
+				reason: `nothing matches in its newest ${MAX_HISTORY_PAGES * 50} orders of ${sent.ticker}, and the history goes further back`,
+				matches: [],
 			};
 		}
 		return { status: "not-found" };
@@ -568,19 +569,20 @@ export class OrdersResource {
 	}
 
 	/**
-	 * Refuses an order larger than the instrument's `maxOpenQuantity`, once this client has loaded the instrument list;
-	 * it is never downloaded for this. The spec does not define the field, so it is read as the most of an instrument an
-	 * account may hold, which no single order can exceed.
+	 * Refuses a buy larger than the instrument's `maxOpenQuantity`, once this client has loaded the instrument list; it
+	 * is never downloaded for this. The spec does not define the field, so it is read as the most of an instrument an
+	 * account may hold, which no single buy can exceed. Sells are never checked: a lowered limit must not stop anyone
+	 * selling what they already hold.
 	 */
 	#checkMaxOpenQuantity(body: Record<string, unknown>): void {
 		const max = this.#context.maxOpenQuantities.get(String(body.ticker));
-		const quantity = Math.abs(body.quantity as number);
+		const quantity = body.quantity as number;
 		if (max === undefined || quantity <= max) return;
 		throw new ValidationError(
-			`The order is for ${quantity} ${String(body.ticker)}, more than the ${max} Trading 212 lets an account hold.`,
+			`The order buys ${quantity} ${String(body.ticker)}, more than its maxOpenQuantity of ${max}.`,
 			{
 				issues: [{ field: "quantity", message: `is more than the maxOpenQuantity of ${max}` }],
-				hint: "Nothing was sent. If Trading 212 has raised the limit since the instrument list was cached, refresh it with instruments.list({ refresh: true }).",
+				hint: "Nothing was sent. The spec does not define maxOpenQuantity; this client reads it as the most of an instrument an account may hold. If the instrument list is out of date, refresh it with instruments.list({ refresh: true }).",
 			},
 		);
 	}

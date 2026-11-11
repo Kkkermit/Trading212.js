@@ -106,7 +106,8 @@ class OrderTracker {
 		const current = ordersById(orders);
 		const previous = this.#pending;
 		if (previous === undefined) {
-			for (const { order } of page.items) if (typeof order?.id === "number") this.#settled.add(order.id);
+			for (const { order } of page.items)
+				if (typeof order?.id === "number" && settledType(order)) this.#settled.add(order.id);
 			for (const [id, order] of current) if (settledType(order)) this.#settled.add(id);
 			this.#pending = current;
 			return [];

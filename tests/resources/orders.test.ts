@@ -337,14 +337,29 @@ describe("findAfterUnknown", () => {
 		expect(await client.orders.findAfterUnknown(error)).toEqual({ status: "not-found" });
 	});
 
-	it("cannot tell when the history is too busy to search back far enough", async () => {
-		const { client, server, error } = await lostAnswer(createFakeTrading212({ state: { cash: 1_000_000 } }));
-		for (let index = 0; index < 200; index++) server.orderHistory.push({ order: { id: index, ticker: "AAPL_US_EQ" } });
-		expect(await client.orders.findAfterUnknown(error)).toMatchObject({
+	it("cannot say not found when the ticker's history goes further back than it reads", async () => {
+		const { client, server, error } = await lostAnswer();
+		server.orderHistory.splice(0);
+		const old = new Date(Date.now() - 400 * 86_400_000).toISOString();
+		for (let index = 0; index < 201; index++) {
+			server.orderHistory.push({ order: { id: index, ticker: "AAPL_US_EQ", side: "BUY", createdAt: old } });
+		}
+		expect(await client.orders.findAfterUnknown(error)).toEqual({
 			status: "unclear",
-			reason: "the history holds too many recent orders to search",
+			reason: "nothing matches in its newest 200 orders of AAPL_US_EQ, and the history goes further back",
+			matches: [],
 		});
 		expect(server.requests.filter((request) => request.path.includes("history"))).toHaveLength(4);
+	});
+
+	/** A long history must not hide an order it has already found. */
+	it("finds the order even when the ticker's history goes further back than it reads", async () => {
+		const { client, server, order, error } = await lostAnswer();
+		const old = new Date(Date.now() - 400 * 86_400_000).toISOString();
+		for (let index = 0; index < 201; index++) {
+			server.orderHistory.push({ order: { id: index, ticker: "AAPL_US_EQ", side: "BUY", createdAt: old } });
+		}
+		expect(await client.orders.findAfterUnknown(error)).toMatchObject({ status: "found", order: { id: order.id } });
 	});
 
 	it("only looks for orders that were placed, and sends nothing", async () => {
@@ -368,17 +383,21 @@ describe("findAfterUnknown", () => {
 });
 
 describe("the maxOpenQuantity check", () => {
-	it("refuses an order above the limit in the instrument list it has loaded, without sending it", async () => {
+	it("refuses a buy above the limit in the instrument list it has loaded, without sending it", async () => {
 		const { client, server } = createFakeTrading212({ state: { cash: 10_000_000 } });
 		await client.instruments.list();
 		server.requests.length = 0;
 		await expect(client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 10_001 })).rejects.toMatchObject({
 			code: "validation",
+			message: "The order buys 10001 AAPL_US_EQ, more than its maxOpenQuantity of 10000.",
 			issues: [{ field: "quantity", message: "is more than the maxOpenQuantity of 10000" }],
 		});
-		await expect(client.orders.sell({ ticker: "AAPL_US_EQ", quantity: 10_001 }, { dryRun: true })).rejects.toThrow(
-			"more than the 10000",
-		);
+		await expect(
+			client.orders.buy(
+				{ type: "limit", ticker: "AAPL_US_EQ", quantity: 10_001, limitPrice: 1, timeValidity: "DAY" },
+				{ dryRun: true },
+			),
+		).rejects.toThrow("maxOpenQuantity of 10000");
 		expect(server.requests).toHaveLength(0);
 		await client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 10_000 });
 
@@ -387,6 +406,15 @@ describe("the maxOpenQuantity check", () => {
 		if (apple) apple.maxOpenQuantity = 20_000;
 		await client.instruments.list({ refresh: true });
 		await client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 15_000 });
+	});
+
+	/** A limit lowered after someone bought must never stop them selling what they hold. */
+	it("never checks a sell, so a position above the limit can still be sold", async () => {
+		const { client } = createFakeTrading212({ state: { positions: [{ ticker: "AAPL_US_EQ", quantity: 15_000 }] } });
+		await client.instruments.list();
+		expect(await client.orders.sellAll("AAPL_US_EQ", { dryRun: true })).toMatchObject({
+			body: { ticker: "AAPL_US_EQ", quantity: -15_000 },
+		});
 	});
 
 	it("never downloads the instrument list for it, and lets Trading 212 decide when it is not loaded", async () => {

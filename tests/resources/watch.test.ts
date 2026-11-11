@@ -113,6 +113,24 @@ describe("watch.orders", () => {
 		expect(events).toEqual([]);
 	});
 
+	/** A working order that the history also lists must not be taken as already settled when the watcher starts. */
+	it("follows an order that the history listed as still working when it started", async () => {
+		const { client, server, started } = fake();
+		const order = await client.orders.limit(limit);
+		server.orderHistory.unshift({ order: { ...order, status: "PARTIALLY_FILLED" } });
+		const watcher = client.watch.orders({ intervalMs: 5 });
+		const { events, done } = record(watcher);
+		await started(2);
+		server.fill(order.id ?? 0);
+		await vi.waitFor(() => {
+			expect(events).toEqual([
+				expect.objectContaining({ type: "filled", order: expect.objectContaining({ id: order.id }) }),
+			]);
+		});
+		watcher.stop();
+		await done;
+	});
+
 	it("stops, and throws from the loop, when the key cannot read the history", async () => {
 		const { client, server } = fake();
 		server.failNext("listHistoricalOrders", {

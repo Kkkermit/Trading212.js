@@ -490,7 +490,7 @@ export class FakeTrading212Server {
 		const stopPrice = typeof body.stopPrice === "number" ? body.stopPrice : undefined;
 		const price = limitPrice ?? stopPrice ?? this.priceOf(ticker);
 		const max = this.#instrument(ticker)?.maxOpenQuantity;
-		// Demo words these two as below, "Optional[…]" included.
+		// Demo words these two as below, "Optional[…]" included; tying the maximum to maxOpenQuantity is the fake's choice.
 		if (typeof max === "number" && Math.abs(quantity) > max)
 			return apiError(
 				400,

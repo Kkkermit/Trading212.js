@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { InstrumentNotFoundError, TimeoutError } from "../../src/errors/errors";
 import { sessionAt } from "../../src/resources/exchanges";
-import { createFakeTrading212 } from "../../src/testing";
+import { Trading212 } from "../../src/client";
+import { createFakeTrading212, FAKE_API_KEY, FAKE_API_SECRET } from "../../src/testing";
 
 import { scripted } from "../helpers";
 
@@ -169,6 +170,34 @@ describe("isOpen and waitUntilOpen", () => {
 		await vi.advanceTimersByTimeAsync(1000);
 		controller.abort(new Error("stopped"));
 		await expect(waiting).rejects.toThrow("stopped");
+	});
+
+	/** A slow check, such as one waiting for rate-limit budget, must not push the wake-up past the opening. */
+	it("wakes at the opening even when checking took a while", async () => {
+		vi.useFakeTimers({ now: new Date("2026-11-09T12:00:00Z") });
+		const start = Date.now();
+		const { server } = closedMarket(start);
+		let slow = true;
+		const client = new Trading212({
+			environment: "demo",
+			apiKey: FAKE_API_KEY,
+			apiSecret: FAKE_API_SECRET,
+			rateLimit: "off",
+			metadataTtlMs: 24 * HOUR,
+			fetch: async (input, init) => {
+				// The first request takes ten minutes.
+				if (slow) vi.setSystemTime(Date.now() + 10 * 60_000);
+				slow = false;
+				return server.fetch(input, init);
+			},
+		});
+		let openedAt = 0;
+		const opened = client.exchanges.waitUntilOpen("AAPL_US_EQ", { extendedHours: true }).then(() => {
+			openedAt = Date.now();
+		});
+		await vi.advanceTimersByTimeAsync(HOUR / 2);
+		await opened;
+		expect(openedAt - start).toBe(HOUR / 2);
 	});
 
 	it("keeps checking when the schedule does not say, until its timeout", async () => {
