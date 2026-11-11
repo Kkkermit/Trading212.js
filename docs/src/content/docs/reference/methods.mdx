@@ -321,7 +321,8 @@ total(options?: DividendTotalOptions): Promise<DividendTotals>
 
 Adds up the dividends paid from `since` (inclusive) to `until` (exclusive), both optional, for every ticker or one
 with `ticker`. Returns `{ total, count, currency, byTicker }`, where `byTicker` lists each ticker's total, largest
-first. It reads newest first and stops once it passes `since`, so a recent range costs few requests.
+first. It reads every page of the dividend history, one request per 50 payments, because the spec does not say the
+history is sorted.
 
 ## Watch
 

@@ -98,6 +98,7 @@ class OrderTracker {
 	}
 
 	readonly poll = async (signal: AbortSignal): Promise<OrderEvent[]> => {
+		// Orders never seen pending are found here only if the history is newest first, which the spec does not state.
 		const [orders, page] = await Promise.all([
 			this.#orders.list({ signal }),
 			this.#history.list({ signal, limit: 50 }),

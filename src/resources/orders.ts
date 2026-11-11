@@ -212,7 +212,8 @@ function sentOrderOf(error: unknown): SentOrder {
  */
 function resemblance(order: Order, sent: SentOrder, windowMs: number): "same" | "similar" | "other" {
 	if (tickerOf(order) !== sent.ticker) return "other";
-	if (order.side && order.side !== (sent.quantity > 0 ? "BUY" : "SELL")) return "other";
+	const side = order.side ?? (typeof order.quantity === "number" && order.quantity < 0 ? "SELL" : undefined);
+	if (side && side !== (sent.quantity > 0 ? "BUY" : "SELL")) return "other";
 	const createdAt = order.createdAt ? Date.parse(order.createdAt) : Number.NaN;
 	if (!Number.isNaN(createdAt) && Math.abs(createdAt - sent.sentAt) > windowMs) return "other";
 	const listed = typeof order.quantity === "number" ? Math.abs(order.quantity) : undefined;
@@ -518,7 +519,10 @@ export class OrdersResource {
 		return { status: "not-found" };
 	}
 
-	/** Sorts the recent history into the candidates; false when the window reaches past the pages it may read. */
+	/**
+	 * Sorts the ticker's history into the candidates, and says whether it read all of it. The spec does not say the
+	 * history is sorted, so it never stops at an old order: one past the pages it reads could be the one sent.
+	 */
 	async #searchHistory(candidates: Candidates, sent: SentOrder, windowMs: number, call: CallOptions): Promise<boolean> {
 		let page: Page<HistoricalOrder> | null = await this.#history.list({ ...call, limit: 50, ticker: sent.ticker });
 		for (let read = 1; page; read++) {
@@ -528,9 +532,7 @@ export class OrdersResource {
 				sent,
 				windowMs,
 			);
-			const oldest = page.items.at(-1)?.order?.createdAt;
-			const pastWindow = oldest !== undefined && oldest !== null && Date.parse(oldest) < sent.sentAt - windowMs;
-			if (!page.hasMore || pastWindow) return true;
+			if (!page.hasMore) return true;
 			if (read === MAX_HISTORY_PAGES) return false;
 			page = await page.next(call);
 		}

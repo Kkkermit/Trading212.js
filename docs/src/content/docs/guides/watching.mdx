@@ -32,6 +32,10 @@ and quantity) when there is one. A market order usually fills before any check s
 only as `filled`. An order that leaves the pending list without the history saying how it ended is reported as
 `gone` after five checks.
 
+Each check reads the newest 50 orders in the history, so orders that settle without ever being seen pending are
+found only if Trading 212 lists the history newest first. The spec does not say it does; an order that was seen
+pending is looked up by its ticker either way.
+
 ## With a loop
 
 <Example name="watch-loop" />

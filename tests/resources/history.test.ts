@@ -28,7 +28,7 @@ describe("history", () => {
 		expect(requests[0]?.query).toEqual({ time: "2026-01-01T00:00:00.000Z", limit: "10" });
 	});
 
-	it("adds up dividends in a date range, in total and per ticker, reading back only as far as it needs", async () => {
+	it("adds up dividends in a date range, in total and per ticker", async () => {
 		const paid = (ticker: string, amount: number, paidOn: string) => ({ ticker, amount, paidOn, currency: "GBP" });
 		const dividends = [
 			paid("AAPL_US_EQ", 0.1, "2026-10-01T00:00:00Z"),
@@ -37,7 +37,7 @@ describe("history", () => {
 			paid("AAPL_US_EQ", 9, "2026-03-01T00:00:00Z"),
 			...Array.from({ length: 60 }, () => paid("VUSAl_EQ", 1, "2025-01-01T00:00:00Z")),
 		];
-		const { client, server } = createFakeTrading212({ state: { dividends } });
+		const { client } = createFakeTrading212({ state: { dividends } });
 		expect(
 			await client.history.dividends.total({ since: "2026-04-06", until: new Date("2026-10-01T00:00:00Z") }),
 		).toEqual({
@@ -48,8 +48,19 @@ describe("history", () => {
 		});
 		// Floating-point noise from 0.1 + 0.2 is tidied away.
 		expect((await client.history.dividends.total({ since: "2026-04-06", ticker: "AAPL_US_EQ" })).total).toBe(0.3);
-		expect(server.requests.filter((request) => request.path.endsWith("/dividends"))).toHaveLength(2);
 		expect(await client.history.dividends.total()).toMatchObject({ count: 64, total: 70.05 });
 		await expect(client.history.dividends.total({ since: "last year" })).rejects.toThrow("since is not a valid date");
+	});
+
+	/** The spec does not say the history is sorted, so a payment after an older one must still be counted. */
+	it("reads every page, counting a payment that comes after older ones", async () => {
+		const dividends = [
+			...Array.from({ length: 60 }, () => ({ ticker: "VUSAl_EQ", amount: 1, paidOn: "2025-01-01T00:00:00Z" })),
+			{ ticker: "AAPL_US_EQ", amount: 5, paidOn: "2026-06-01T00:00:00Z" },
+			{ ticker: "AAPL_US_EQ", amount: 7 },
+		];
+		const { client, server } = createFakeTrading212({ state: { dividends } });
+		expect(await client.history.dividends.total({ since: "2026-01-01" })).toMatchObject({ total: 5, count: 1 });
+		expect(server.requests.filter((request) => request.path.endsWith("/dividends"))).toHaveLength(2);
 	});
 });

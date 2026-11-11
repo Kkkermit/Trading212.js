@@ -20,7 +20,8 @@ item.
 
 `history.dividends.total()` adds up the dividends paid from `since` up to, but not including, `until`, both optional,
 for every ticker or one `ticker`. It returns `{ total, count, currency, byTicker }`, with each ticker's total largest
-first, and stops reading pages once it passes `since`, so a recent range costs one or two requests.
+first. It reads every page of the dividend history, 50 payments per request, because Trading 212 does not say the
+history is sorted, so stopping early could leave a payment out.
 
 ## Every item
 

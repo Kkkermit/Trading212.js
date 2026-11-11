@@ -41,8 +41,8 @@ function instant(value: Date | string | undefined, field: string): number | unde
 /** Dividends paid out, a page at a time or added up. */
 export class DividendList extends PagedList<HistoryDividendItem, { ticker?: string }> {
 	/**
-	 * Adds up the dividends paid between `since` and `until`, in total and per ticker. Pages are read newest first,
-	 * and reading stops once it passes `since`.
+	 * Adds up the dividends paid between `since` and `until`, in total and per ticker. It reads every page, because the
+	 * spec does not say the history is sorted, so stopping early could leave a payment out.
 	 *
 	 * @example
 	 * const { total, byTicker } = await t212.history.dividends.total({ since: "2026-04-06" });
@@ -57,9 +57,8 @@ export class DividendList extends PagedList<HistoryDividendItem, { ticker?: stri
 		let currency: string | undefined;
 		for await (const dividend of this.all({ ...call, ...(ticker !== undefined && { ticker }) })) {
 			const paidOn = dividend.paidOn ? Date.parse(dividend.paidOn) : Number.NaN;
-			if (from !== undefined && paidOn < from) break;
+			if (from !== undefined && !(paidOn >= from)) continue;
 			if (to !== undefined && !(paidOn < to)) continue;
-			if (from !== undefined && Number.isNaN(paidOn)) continue;
 			const amount = dividend.amount ?? 0;
 			const key = dividend.ticker ?? "unknown";
 			byTicker.set(key, tidy((byTicker.get(key) ?? 0) + amount));

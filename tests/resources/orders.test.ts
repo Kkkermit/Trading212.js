@@ -318,6 +318,25 @@ describe("findAfterUnknown", () => {
 		});
 	});
 
+	/** Stopping at the first old order would rely on a sort order the spec does not promise. */
+	it("finds an order listed after older ones", async () => {
+		const { client, server, error } = await lostAnswer();
+		const [filled] = server.orderHistory.splice(0, 1);
+		const old = new Date(Date.now() - 86_400_000).toISOString();
+		for (let index = 0; index < 60; index++) {
+			server.orderHistory.push({ order: { id: index, ticker: "AAPL_US_EQ", side: "SELL", createdAt: old } });
+		}
+		if (filled) server.orderHistory.push(filled);
+		expect(await client.orders.findAfterUnknown(error)).toMatchObject({ status: "found", where: "history" });
+	});
+
+	it("infers a sell from a negative quantity when the side is not listed", async () => {
+		const { client, server, error } = await lostAnswer();
+		const listed = server.orderHistory[0]?.order;
+		if (listed) Object.assign(listed, { side: null, quantity: -2 });
+		expect(await client.orders.findAfterUnknown(error)).toEqual({ status: "not-found" });
+	});
+
 	it("cannot tell when the history is too busy to search back far enough", async () => {
 		const { client, server, error } = await lostAnswer(createFakeTrading212({ state: { cash: 1_000_000 } }));
 		for (let index = 0; index < 200; index++) server.orderHistory.push({ order: { id: index, ticker: "AAPL_US_EQ" } });
