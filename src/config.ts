@@ -4,7 +4,7 @@ import { ConfigurationError } from "./errors/errors";
 import type { RateLimitMode } from "./http/rateLimiter";
 import { DEFAULT_RETRY, type ResolvedRetry, type RetryOptions } from "./http/retry";
 import type { FetchLike, Hooks } from "./http/transport";
-import type { Logger } from "./logging/logger";
+import { consoleLogger, isLogLevel, type Logger, type LogLevel, silentLogger } from "./logging/logger";
 
 export interface Trading212Options {
 	/** Required, with no default: `demo` for paper trading or `live` for real money. */
@@ -27,8 +27,11 @@ export interface Trading212Options {
 	rateLimit?: RateLimitMode;
 	/** The longest the client will wait for rate-limit budget before throwing `RateLimitError`. Default 60 s. */
 	maxRateLimitWaitMs?: number;
-	/** Where to send log lines. Default: nowhere. Every field is redacted first. */
-	logger?: Logger;
+	/**
+	 * Where to send log lines: a logger, or a level such as `"debug"` to write to the console. Default: nowhere. Every
+	 * field is redacted first.
+	 */
+	logger?: Logger | LogLevel;
 	/** Callbacks for metrics and tracing. */
 	hooks?: Hooks;
 	/** Where to keep the instrument and exchange lists. Default: in memory, per client. */
@@ -58,6 +61,7 @@ interface ResolvedOptions {
 	readonly rateLimit: RateLimitMode;
 	readonly maxRateLimitWaitMs: number;
 	readonly metadataTtlMs: number;
+	readonly logger: Logger;
 	readonly origin: string;
 	readonly officialOrigin: boolean;
 }
@@ -138,6 +142,16 @@ function environmentHint(value: unknown, field: string): string {
 	return `Set ${field} to demo or live. There is deliberately no default, because live trades real money.`;
 }
 
+function resolveLogger(logger: unknown): Logger {
+	if (logger === undefined) return silentLogger;
+	if (typeof logger === "string") {
+		if (isLogLevel(logger)) return consoleLogger({ level: logger });
+		fail("logger", `logger is "${logger}", which is not a log level.`, "Pass debug, info, warn or error, or a logger.");
+	}
+	if (typeof logger !== "object" || logger === null) fail("logger", "logger must be a logger or a log level.");
+	return logger as Logger;
+}
+
 function isBrowser(): boolean {
 	const scope = globalThis as { document?: unknown; window?: unknown };
 	return typeof scope.document === "object" && typeof scope.window === "object";
@@ -193,6 +207,7 @@ export function resolveOptions(options: Trading212Options): ResolvedOptions {
 		rateLimit: options.rateLimit ?? "pace",
 		maxRateLimitWaitMs: positiveMs("maxRateLimitWaitMs", options.maxRateLimitWaitMs, 60_000, 3_600_000),
 		metadataTtlMs: positiveMs("metadataTtlMs", options.metadataTtlMs, ONE_HOUR, 7 * 24 * ONE_HOUR),
+		logger: resolveLogger(options.logger),
 		origin: resolvedOrigin,
 		officialOrigin: official,
 	};
@@ -203,9 +218,11 @@ export type EnvSource = Record<string, string | undefined>;
 /**
  * Reads `T212_ENV`, `T212_API_KEY` and `T212_API_SECRET`, the names Trading 212's own tools use. With
  * `T212_ENV=demo`, `T212_DEMO_API_KEY` and `T212_DEMO_API_SECRET` are used when the plain ones are unset, and the
- * same for live. Nothing is read from `.env` files.
+ * same for live. `T212_LOG`, such as `debug`, writes log lines to the console. Nothing is read from `.env` files.
  */
-export function optionsFromEnv(env?: EnvSource): Pick<Trading212Options, "environment" | "apiKey" | "apiSecret"> {
+export function optionsFromEnv(
+	env?: EnvSource,
+): Pick<Trading212Options, "environment" | "apiKey" | "apiSecret"> & { logger?: LogLevel } {
 	const source = env ?? (globalThis as { process?: { env?: EnvSource } }).process?.env ?? {};
 	const environment = source.T212_ENV?.trim().toLowerCase();
 	if (!isEnvironment(environment)) {
@@ -222,7 +239,11 @@ export function optionsFromEnv(env?: EnvSource): Pick<Trading212Options, "enviro
 	const apiSecret = read("T212_API_SECRET") ?? read(`${prefix}_API_SECRET`);
 	if (!apiKey) fail("T212_API_KEY", `Neither T212_API_KEY nor ${prefix}_API_KEY is set.`);
 	if (!apiSecret) fail("T212_API_SECRET", `Neither T212_API_SECRET nor ${prefix}_API_SECRET is set.`);
-	return { environment, apiKey, apiSecret };
+	const level = read("T212_LOG")?.trim().toLowerCase();
+	if (level !== undefined && !isLogLevel(level)) {
+		fail("T212_LOG", `T212_LOG is "${level}", which is not a log level.`, "Set it to debug, info, warn or error.");
+	}
+	return { environment, apiKey, apiSecret, ...(level !== undefined && { logger: level }) };
 }
 
 /** The `Authorization` header: Basic, with the key as username and the secret as password, UTF-8 encoded. */

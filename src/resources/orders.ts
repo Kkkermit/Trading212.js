@@ -1,15 +1,26 @@
-import { NotFoundError, TimeoutError, ValidationError } from "../errors/errors";
+import { isList } from "../cache";
+import {
+	isTrading212Error,
+	NotFoundError,
+	OrderOutcomeUnknownError,
+	TimeoutError,
+	type Trading212Error,
+	TradingDisabledError,
+	ValidationError,
+} from "../errors/errors";
 import type { EndpointDefinition } from "../http/endpoint";
-import { ENDPOINTS } from "../http/endpoints.generated";
+import { ENDPOINTS, type EndpointId } from "../http/endpoints.generated";
 import type { CallOptions } from "../http/transport";
 import { durationOption } from "../internal/duration";
 import { sleep } from "../internal/sleep";
 import { truncateQuantity } from "../orders/quantity";
 import { type OrderTimeValidity, type OrderType, validateOrder } from "../orders/validate";
-import type { PagedList } from "../pagination";
+import type { Page, PagedList } from "../pagination";
 import type { HistoricalOrder, Order } from "../types/api.generated";
+import type { Instrument } from "../types/public";
 
 import type { ResourceContext } from "./context";
+import { instrumentsCacheKey } from "./instruments";
 import type { PositionsResource } from "./positions";
 
 export interface MarketOrderRequest {
@@ -95,12 +106,50 @@ export interface SellAllOptions extends PlaceOptions {
 	extendedHours?: boolean;
 }
 
+export interface CancelAllOptions extends CallOptions {
+	/** Only this ticker's orders. Default: every pending order. */
+	ticker?: string;
+}
+
+/**
+ * What happened to one order in `cancelAll()`. `requested` means Trading 212 accepted the cancellation, though the
+ * order may still fill first; `gone` means it had already filled or been cancelled.
+ */
+export type CancelResult =
+	| { readonly status: "requested"; readonly order: Order }
+	| { readonly status: "gone"; readonly order: Order }
+	| { readonly status: "failed"; readonly order: Order; readonly error: Trading212Error };
+
+export interface FindAfterUnknownOptions extends CallOptions {
+	/** How far either side of the moment it was sent an order may have been created and still match. Default 5 min. */
+	windowMs?: number;
+}
+
+/**
+ * What `findAfterUnknown()` found. `found`: the order reached Trading 212, so do not send it again; check its
+ * `status`, as it may have been rejected. `not-found`: nothing like it is pending or in the history. `unclear`: more
+ * than one order matches, so it cannot say which, if any, is this one.
+ */
+export type OrderSearchResult =
+	| { readonly status: "found"; readonly order: Order; readonly where: "pending" | "history" }
+	| { readonly status: "not-found" }
+	| { readonly status: "unclear"; readonly reason: string; readonly matches: readonly Order[] };
+
 const ENDPOINT_FOR: Record<OrderType, EndpointDefinition> = {
 	market: ENDPOINTS.placeMarketOrder,
 	limit: ENDPOINTS.placeLimitOrder,
 	stop: ENDPOINTS.placeStopOrder,
 	stopLimit: ENDPOINTS.placeStopLimitOrder,
 };
+
+const PLACED_AS: Partial<Record<EndpointId, string>> = {
+	placeMarketOrder: "MARKET",
+	placeLimitOrder: "LIMIT",
+	placeStopOrder: "STOP",
+	placeStopLimitOrder: "STOP_LIMIT",
+};
+
+const MAX_HISTORY_PAGES = 4;
 
 /** The statuses an order does not leave. */
 export const FINAL_ORDER_STATUSES: ReadonlySet<string> = new Set(["FILLED", "CANCELLED", "REJECTED", "REPLACED"]);
@@ -112,6 +161,60 @@ function checkOrderId(id: unknown): number {
 		});
 	}
 	return id;
+}
+
+const tickerOf = (order: Order): string | undefined => order.ticker ?? order.instrument?.ticker ?? undefined;
+
+/** A field that is missing on either side never rules an order out, so a match is never missed. */
+const differs = (expected: unknown, actual: unknown): boolean =>
+	typeof expected === "number" && typeof actual === "number" ? Math.abs(expected - actual) > 1e-9 : false;
+
+interface SentOrder {
+	readonly ticker: string;
+	readonly quantity: number;
+	readonly type: string;
+	readonly limitPrice: unknown;
+	readonly stopPrice: unknown;
+	readonly sentAt: number;
+}
+
+function sentOrderOf(error: unknown): SentOrder {
+	if (!(error instanceof OrderOutcomeUnknownError)) {
+		throw new ValidationError("findAfterUnknown() takes the OrderOutcomeUnknownError an order threw.", {
+			issues: [{ field: "error", message: "is not an OrderOutcomeUnknownError" }],
+		});
+	}
+	const endpoint = error.request?.endpoint;
+	const type = endpoint === undefined ? undefined : PLACED_AS[endpoint as EndpointId];
+	const sent = (typeof error.sent === "object" && error.sent !== null ? error.sent : {}) as Record<string, unknown>;
+	if (type === undefined || typeof sent.ticker !== "string" || typeof sent.quantity !== "number") {
+		throw new ValidationError(
+			`findAfterUnknown() looks for placed orders, and this error came from ${endpoint ?? "elsewhere"}.`,
+			{
+				issues: [{ field: "error", message: "is not from placing an order" }],
+				hint: "For a cancellation, call orders.get(id): a NotFoundError means the order is no longer pending.",
+			},
+		);
+	}
+	return {
+		ticker: sent.ticker,
+		quantity: sent.quantity,
+		type,
+		limitPrice: sent.limitPrice,
+		stopPrice: sent.stopPrice,
+		sentAt: error.sentAt?.getTime() ?? Date.now(),
+	};
+}
+
+function matchesSent(order: Order, sent: SentOrder, windowMs: number): boolean {
+	if (tickerOf(order) !== sent.ticker) return false;
+	if (order.side && order.side !== (sent.quantity > 0 ? "BUY" : "SELL")) return false;
+	if (order.type && order.type !== sent.type) return false;
+	if (order.initiatedFrom && order.initiatedFrom !== "API") return false;
+	if (differs(Math.abs(sent.quantity), order.quantity)) return false;
+	if (differs(sent.limitPrice, order.limitPrice) || differs(sent.stopPrice, order.stopPrice)) return false;
+	const createdAt = order.createdAt ? Date.parse(order.createdAt) : Number.NaN;
+	return Number.isNaN(createdAt) || Math.abs(createdAt - sent.sentAt) <= windowMs;
 }
 
 function requestBody(input: object): Record<string, unknown> {
@@ -289,7 +392,11 @@ export class OrdersResource {
 			for (;;) {
 				if (!gone) {
 					try {
-						const current = await this.get(id, call);
+						const { data: current } = await this.#context.transport.request<Order>(ENDPOINTS.getOrder, {
+							...call,
+							params: { id },
+							expectNotFound: true,
+						});
 						last = current;
 						ticker ??= current.ticker ?? current.instrument?.ticker ?? undefined;
 						if (current.status && FINAL_ORDER_STATUSES.has(current.status)) return current;
@@ -312,6 +419,81 @@ export class OrdersResource {
 		}
 	}
 
+	/**
+	 * Asks Trading 212 to cancel every pending order, or one ticker's, one request each and never retried. An order
+	 * that has already gone counts as done, and a failure is reported in its result rather than stopping the rest.
+	 *
+	 * Scope `orders:read` and `orders:execute`.
+	 *
+	 * @example
+	 * const results = await t212.orders.cancelAll({ ticker: "AAPL_US_EQ" });
+	 * const failed = results.filter((result) => result.status === "failed");
+	 */
+	async cancelAll(options: CancelAllOptions = {}): Promise<CancelResult[]> {
+		const { ticker, ...call } = options;
+		const pending = (await this.list(call)).filter((order) => ticker === undefined || tickerOf(order) === ticker);
+		const results: CancelResult[] = [];
+		for (const order of pending) {
+			try {
+				await this.#context.transport.request(ENDPOINTS.cancelOrder, {
+					...call,
+					params: { id: checkOrderId(order.id) },
+					expectNotFound: true,
+				});
+				results.push({ status: "requested", order });
+			} catch (error) {
+				if (error instanceof TradingDisabledError || !isTrading212Error(error)) throw error;
+				results.push(error instanceof NotFoundError ? { status: "gone", order } : { status: "failed", order, error });
+			}
+		}
+		return results;
+	}
+
+	/**
+	 * After an order threw `OrderOutcomeUnknownError`, looks for it among the pending orders and the recent history,
+	 * matching the ticker, direction, type, quantity and prices of what was sent. It never sends anything, so whether
+	 * to place the order again stays your decision. Trading 212 may take a moment to list a new order, so give it a
+	 * few seconds before deciding it was not placed.
+	 *
+	 * Scope `orders:read` and `history:orders`.
+	 *
+	 * @example
+	 * const result = await t212.orders.findAfterUnknown(error);
+	 * if (result.status === "not-found") await t212.orders.buy(request);
+	 */
+	async findAfterUnknown(error: unknown, options: FindAfterUnknownOptions = {}): Promise<OrderSearchResult> {
+		const { windowMs: given, ...call } = options;
+		const sent = sentOrderOf(error);
+		const windowMs = durationOption(given, "windowMs") ?? 5 * 60_000;
+		const pending = (await this.list(call)).filter((order) => matchesSent(order, sent, windowMs));
+		const settled = await this.#settledSince(sent, windowMs, call);
+		if (settled === undefined) {
+			return { status: "unclear", reason: "the history holds too many recent orders to search", matches: pending };
+		}
+		const matches = [...pending, ...settled.filter((order) => !pending.some((other) => other.id === order.id))];
+		const [only] = matches;
+		if (matches.length === 0 || only === undefined) return { status: "not-found" };
+		if (matches.length > 1) {
+			return { status: "unclear", reason: `${matches.length} recent orders match it`, matches };
+		}
+		return { status: "found", order: only, where: pending.includes(only) ? "pending" : "history" };
+	}
+
+	/** Settled orders matching what was sent, or `undefined` when the window reaches past the pages it may read. */
+	async #settledSince(sent: SentOrder, windowMs: number, call: CallOptions): Promise<Order[] | undefined> {
+		const matches: Order[] = [];
+		let page: Page<HistoricalOrder> | null = await this.#history.list({ ...call, limit: 50, ticker: sent.ticker });
+		for (let read = 1; page; read++) {
+			for (const { order } of page.items) if (order && matchesSent(order, sent, windowMs)) matches.push(order);
+			const oldest = page.items.at(-1)?.order?.createdAt;
+			const pastWindow = oldest !== undefined && oldest !== null && Date.parse(oldest) < sent.sentAt - windowMs;
+			if (!page.hasMore || pastWindow) return matches;
+			if (read === MAX_HISTORY_PAGES) return undefined;
+			page = await page.next(call);
+		}
+		return matches;
+	}
+
 	async #fromHistory(id: number, ticker: string | undefined, call: CallOptions): Promise<Order | undefined> {
 		const page = await this.#history.list({ ...call, limit: 50, ...(ticker && { ticker }) });
 		return page.items.find((item) => item.order?.id === id)?.order ?? undefined;
@@ -321,6 +503,7 @@ export class OrdersResource {
 		const { dryRun = false, ...call } = options ?? ({} as PlaceOptions);
 		const body = requestBody(request);
 		validateOrder(type, body);
+		await this.#checkMaxOpenQuantity(body);
 		const endpoint = ENDPOINT_FOR[type];
 		const { transport } = this.#context;
 		if (dryRun) {
@@ -337,5 +520,25 @@ export class OrdersResource {
 		}
 		const { data } = await transport.request<Order>(endpoint, { ...call, body, expectBody: true });
 		return data as Placed<O>;
+	}
+
+	/**
+	 * Refuses an order larger than the instrument's `maxOpenQuantity`, when the instrument list is already cached; it
+	 * is never downloaded for this. The spec does not define the field, so it is read as the most of an instrument an
+	 * account may hold, which no single order can exceed.
+	 */
+	async #checkMaxOpenQuantity(body: Record<string, unknown>): Promise<void> {
+		const { cache, cacheNamespace } = this.#context;
+		const instruments = await cache.peek(instrumentsCacheKey(cacheNamespace), isList<Instrument>);
+		const max = instruments?.find((instrument) => instrument.ticker === body.ticker)?.maxOpenQuantity;
+		const quantity = Math.abs(body.quantity as number);
+		if (typeof max !== "number" || max <= 0 || quantity <= max) return;
+		throw new ValidationError(
+			`The order is for ${quantity} ${String(body.ticker)}, more than the ${max} Trading 212 lets an account hold.`,
+			{
+				issues: [{ field: "quantity", message: `is more than the maxOpenQuantity of ${max}` }],
+				hint: "Nothing was sent. If Trading 212 has raised the limit since the instrument list was cached, refresh it with instruments.list({ refresh: true }).",
+			},
+		);
 	}
 }

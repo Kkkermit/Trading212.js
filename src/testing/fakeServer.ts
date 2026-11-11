@@ -40,6 +40,8 @@ export interface FakeAccountState {
 	currency?: string;
 	/** Free cash. Default 10,000. */
 	cash?: number;
+	/** Orders worth less than this are refused with `min-quantity-exceeded`, as demo refuses tiny orders. Default 1. */
+	minOrderValue?: number;
 	/** Default: Apple, Microsoft and Tesla on US markets, and Vanguard's S&P 500 ETF in London. */
 	instruments?: TradableInstrument[];
 	/** Price per ticker. Unlisted tickers default to 100. */
@@ -182,6 +184,8 @@ export class FakeTrading212Server {
 	exportsOnDemo = false;
 
 	cash: number;
+	/** Orders worth less than this are refused with `min-quantity-exceeded`. */
+	minOrderValue: number;
 	readonly currency: string;
 	readonly accountId: number;
 	readonly instruments: TradableInstrument[];
@@ -205,6 +209,7 @@ export class FakeTrading212Server {
 		this.environment = environment;
 		this.#origin = BASE_URLS[environment];
 		this.cash = state.cash ?? 10_000;
+		this.minOrderValue = state.minOrderValue ?? 1;
 		this.currency = state.currency ?? "GBP";
 		this.accountId = state.accountId ?? 12_345_678;
 		this.instruments = (state.instruments ?? DEFAULT_INSTRUMENTS).map((instrument) => ({ ...instrument }));
@@ -481,6 +486,25 @@ export class FakeTrading212Server {
 			return apiError(400, "quantity-precision-mismatch", REFUSED, "invalid quantity precision 4");
 		if (id !== "placeMarketOrder" && "extendedHours" in body)
 			return apiError(400, "invalid-request", INVALID, "Invalid payload");
+		const limitPrice = typeof body.limitPrice === "number" ? body.limitPrice : undefined;
+		const stopPrice = typeof body.stopPrice === "number" ? body.stopPrice : undefined;
+		const price = limitPrice ?? stopPrice ?? this.priceOf(ticker);
+		const max = this.#instrument(ticker)?.maxOpenQuantity;
+		// Demo words these two as below, "Optional[…]" included.
+		if (typeof max === "number" && Math.abs(quantity) > max)
+			return apiError(
+				400,
+				"max-quantity-exceeded",
+				REFUSED,
+				`Max quantity for single order is Optional[${String(max)}]`,
+			);
+		if (Math.abs(quantity) * price < this.minOrderValue)
+			return apiError(
+				400,
+				"min-quantity-exceeded",
+				REFUSED,
+				`must trade at least ${String(Math.ceil((this.minOrderValue / price) * 1e8) / 1e8)}`,
+			);
 		if (!this.marketOpen) return apiError(400, "market-closed", REFUSED, "The market is closed");
 		const type =
 			{
@@ -489,9 +513,6 @@ export class FakeTrading212Server {
 				placeStopOrder: "STOP",
 				placeStopLimitOrder: "STOP_LIMIT",
 			}[id as string] ?? "MARKET";
-		const limitPrice = typeof body.limitPrice === "number" ? body.limitPrice : undefined;
-		const stopPrice = typeof body.stopPrice === "number" ? body.stopPrice : undefined;
-		const price = limitPrice ?? stopPrice ?? this.priceOf(ticker);
 		const buying = quantity > 0;
 		const holding = this.holdings.get(ticker);
 		const available = holding ? holding.quantity - holding.inPies - this.#reservedShares(ticker) : 0;

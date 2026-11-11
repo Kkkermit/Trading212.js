@@ -296,15 +296,21 @@ export class TimeoutError extends Trading212Error {
 	}
 }
 
-/** An order, cancellation or pie change may or may not have happened. Check `orders.list()` before resending. */
+/**
+ * An order, cancellation or pie change may or may not have happened. `orders.findAfterUnknown()` looks for the order
+ * before you send it again.
+ */
 export class OrderOutcomeUnknownError extends Trading212Error {
 	static override readonly kind = "OrderOutcomeUnknownError";
 	/** What was sent, so it can be looked for. */
 	readonly sent: unknown;
+	/** When it was handed to the network, by this machine's clock. */
+	readonly sentAt: Date | undefined;
 
-	constructor(message: string, details: ErrorDetails & { sent?: unknown }) {
+	constructor(message: string, details: ErrorDetails & { sent?: unknown; sentAt?: number }) {
 		super(message, "outcome_unknown", details);
 		this.sent = details.sent;
+		this.sentAt = details.sentAt === undefined ? undefined : new Date(details.sentAt);
 	}
 }
 

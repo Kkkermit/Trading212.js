@@ -24,6 +24,12 @@ through the same redaction as errors, so no credential ever reaches a log.
 
 `logger: console` works too: it shows every level, with the fields as an object.
 
+A level on its own is a shortcut for `consoleLogger({ level })`:
+
+<Example name="logging-level" />
+
+With `Trading212.fromEnv()`, setting `T212_LOG=debug` in the environment does the same without changing any code.
+
 ## What is logged, and when
 
 | Level   | When                                                                                                                                                                                                    |
@@ -90,8 +96,20 @@ cause's message: everything needed to debug, nothing secret. `console.error(erro
 | `onResponse`      | The same, plus `{ status, durationMs, rateLimit }`, after each answer |
 | `onRetry`         | The same as `onRequest`, plus `{ delayMs, error }`, before a retry    |
 | `onRateLimitWait` | `{ endpoint, waitMs }`, before waiting for budget                     |
+| `onError`         | The same as `onRequest`, plus `{ error }`, once a request has failed  |
 
 Hook events contain no credentials, and an exception thrown in a hook is ignored.
+
+## Reporting every error from one place
+
+<Example name="hooks-errors" />
+
+`onError` is called once for each request that fails, after any retries, with the error the call throws, so a
+service such as Sentry can hear about every failure, including ones inside a watcher or a wait. `attempt` is the
+attempt that failed, or 0 when the client refused before sending, as it does with trading off. It is not called
+when you abort a call, unless it was an order already sent, whose outcome is then unknown; for a 404 the library
+expects, such as `orders.waitFor()` finding an order has left the pending list; or for a mistake caught before any
+request, such as an invalid order. The error still reaches your code as usual.
 
 ## What is redacted
 

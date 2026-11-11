@@ -1,10 +1,11 @@
 import { styleText } from "node:util";
 
 import { Trading212 } from "../client";
-import { type EnvSource, optionsFromEnv } from "../config";
-import { isTrading212Error, MissingScopeError, NotAvailableInDemoError } from "../errors/errors";
-import { createRedactor } from "../logging/redact";
+import type { EnvSource } from "../config";
+import { MissingScopeError, NotAvailableInDemoError } from "../errors/errors";
 import { VERSION } from "../version";
+
+import { credentialRedactor, explain, optionsForCli } from "./shared";
 
 type CheckStatus = "ok" | "missing" | "warning" | "failed" | "skipped";
 
@@ -32,25 +33,10 @@ const COLOUR: Record<CheckStatus, "green" | "red" | "yellow" | "gray"> = {
 	skipped: "gray",
 };
 
-function explain(error: unknown): string {
-	if (isTrading212Error(error)) return error.hint ? `${error.message}\n    ${error.hint}` : error.message;
-	return error instanceof Error ? error.message : String(error);
-}
-
 /** Checks the key, environment and every permission that can be checked without trading. Returns the exit code. */
 export async function runDoctor(options: DoctorOptions): Promise<number> {
 	const results: CheckResult[] = [];
-	// Redacts its own output too, in case an error from the client ever carries a credential.
-	const redact = createRedactor(
-		[
-			options.env.T212_API_KEY,
-			options.env.T212_API_SECRET,
-			...["DEMO", "LIVE"].flatMap((name) => [
-				options.env[`T212_${name}_API_KEY`],
-				options.env[`T212_${name}_API_SECRET`],
-			]),
-		].filter((value): value is string => typeof value === "string"),
-	);
+	const redact = credentialRedactor(options.env);
 	const paint = (status: CheckStatus, text: string): string =>
 		options.color ? styleText(COLOUR[status], text, { validateStream: false }) : text;
 	const report = (result: CheckResult): void => {
@@ -67,7 +53,7 @@ export async function runDoctor(options: DoctorOptions): Promise<number> {
 
 	let client: Trading212;
 	try {
-		const settings = optionsFromEnv(options.env);
+		const settings = optionsForCli(options.env);
 		client = options.createClient ? options.createClient(options.env) : new Trading212(settings);
 		report({
 			name: "settings",

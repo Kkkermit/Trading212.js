@@ -320,6 +320,57 @@ describe("hooks and logging", () => {
 		expect(onResponse).toHaveBeenCalledWith(expect.objectContaining({ status: 200, durationMs: expect.any(Number) }));
 	});
 
+	it("calls onError once for each request that fails, after its retries", async () => {
+		const onError = vi.fn();
+		const { client } = scripted(
+			[{ status: 503, body: {} }, { status: 503, body: {} }, { status: 503, body: {} }, { body: SUMMARY }],
+			{ hooks: { onError } },
+		);
+		await expect(client.account.summary()).rejects.toBeInstanceOf(ServerError);
+		await client.account.summary();
+		expect(onError).toHaveBeenCalledTimes(1);
+		expect(onError).toHaveBeenCalledWith({
+			endpoint: "getAccountSummary",
+			method: "GET",
+			path: "/api/v0/equity/account/summary",
+			attempt: 3,
+			error: expect.any(ServerError),
+		});
+	});
+
+	it("calls onError for a request refused before sending, but not for an abort or a 404 the caller expects", async () => {
+		const onError = vi.fn(() => {
+			throw new Error("bad hook");
+		});
+		const { client } = scripted(
+			[{ status: 404, body: {} }, { status: 404, body: {} }, { body: { items: [], nextPagePath: null } }],
+			{
+				environment: "live",
+				hooks: { onError },
+			},
+		);
+		await expect(client.orders.market(ORDER)).rejects.toBeInstanceOf(TradingDisabledError);
+		expect(onError).toHaveBeenLastCalledWith(expect.objectContaining({ attempt: 0, endpoint: "placeMarketOrder" }));
+		await expect(client.orders.get(5)).rejects.toThrow();
+		expect(onError).toHaveBeenCalledTimes(2);
+		await expect(client.orders.waitFor(5, { timeoutMs: 50 })).rejects.toBeInstanceOf(TimeoutError);
+		const aborted = new AbortController();
+		aborted.abort(new Error("stop"));
+		await expect(client.account.summary({ signal: aborted.signal })).rejects.toThrow("stop");
+		expect(onError).toHaveBeenCalledTimes(2);
+	});
+
+	it("records when a trade whose outcome is unknown was sent", async () => {
+		const before = Date.now();
+		const { client } = scripted([networkError("ECONNRESET"), { status: 500, body: {} }]);
+		const lost = await client.orders.market(ORDER).catch((error: unknown) => error);
+		const refused = await client.orders.market(ORDER).catch((error: unknown) => error);
+		for (const error of [lost, refused]) {
+			expect(error).toBeInstanceOf(OrderOutcomeUnknownError);
+			expect((error as OrderOutcomeUnknownError).sentAt?.getTime()).toBeGreaterThanOrEqual(before);
+		}
+	});
+
 	it("logs each request and response at debug", async () => {
 		const { lines, logger } = memoryLogger();
 		const { client } = scripted([{ body: SUMMARY }], { logger });

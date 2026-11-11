@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Trading212 } from "../src/client";
 import { basicAuthorization, optionsFromEnv, resolveOptions, type Trading212Options } from "../src/config";
@@ -101,6 +101,25 @@ describe("resolveOptions", () => {
 	});
 });
 
+describe("the logger option", () => {
+	it("takes a log level as a console logger", () => {
+		const debug = vi.spyOn(console, "debug").mockImplementation(() => undefined);
+		try {
+			resolveOptions({ ...base, logger: "debug" }).logger.debug("hello", { n: 1 });
+			resolveOptions({ ...base, logger: "warn" }).logger.debug("hidden");
+			expect(debug.mock.calls).toEqual([["[trading212] DEBUG hello n=1"]]);
+		} finally {
+			debug.mockRestore();
+		}
+	});
+
+	it("refuses anything that is neither a logger nor a level", () => {
+		expect(fieldOf({ ...base, logger: "verbose" })).toBe("logger");
+		expect(fieldOf({ ...base, logger: 3 })).toBe("logger");
+		expect(fieldOf({ ...base, logger: null })).toBe("logger");
+	});
+});
+
 describe("browser refusal", () => {
 	const scope = globalThis as Record<string, unknown>;
 	afterEach(() => {
@@ -144,6 +163,15 @@ describe("optionsFromEnv", () => {
 				T212_DEMO_API_SECRET: "ds",
 			}),
 		).toEqual({ environment: "demo", apiKey: "dk", apiSecret: "ds" });
+	});
+
+	it("reads T212_LOG as a log level, and refuses one it does not know", () => {
+		const env = { T212_ENV: "demo", T212_API_KEY: "k", T212_API_SECRET: "s" };
+		expect(optionsFromEnv({ ...env, T212_LOG: " DEBUG " }).logger).toBe("debug");
+		expect(optionsFromEnv({ ...env, T212_LOG: "" })).not.toHaveProperty("logger");
+		expect(() => optionsFromEnv({ ...env, T212_LOG: "loud" })).toThrow(
+			expect.objectContaining({ field: "T212_LOG", hint: "Set it to debug, info, warn or error." }),
+		);
 	});
 
 	it("says exactly what is missing", () => {

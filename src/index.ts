@@ -41,6 +41,7 @@ export type {
 	FetchLike,
 	Hooks,
 	RateLimitWaitEvent,
+	RequestErrorEvent,
 	RequestEvent,
 	ResponseEvent,
 	RetryEvent,
@@ -63,15 +64,26 @@ export { type OrderTimeValidity, type OrderType, TIME_VALIDITIES } from "./order
 export type { IterateOptions, Page, PageOptions, PagedList } from "./pagination";
 
 export type { AccountResource } from "./resources/account";
-export { type ExchangesResource, type MarketSession, type MarketStatus, sessionAt } from "./resources/exchanges";
-export type { HistoryResource } from "./resources/history";
+export {
+	type ExchangesResource,
+	type MarketSession,
+	type MarketStatus,
+	type OpenOptions,
+	sessionAt,
+	type WaitUntilOpenOptions,
+} from "./resources/exchanges";
+export type { DividendList, DividendTotalOptions, DividendTotals, HistoryResource } from "./resources/history";
 export type { InstrumentsResource, ListOptions, ResolveOptions, SearchOptions } from "./resources/instruments";
 export {
+	type CancelAllOptions,
+	type CancelResult,
 	type DryRunResult,
 	FINAL_ORDER_STATUSES,
+	type FindAfterUnknownOptions,
 	type LimitOrderRequest,
 	type MarketOrderRequest,
 	type OrderInput,
+	type OrderSearchResult,
 	type OrdersResource,
 	type PlaceOptions,
 	type Placed,
@@ -89,6 +101,15 @@ export {
 } from "./resources/portfolio";
 export type { PositionsResource } from "./resources/positions";
 export type { ExportResult, ReportRequest, ReportsResource, ReportWaitOptions } from "./resources/reports";
+export type {
+	CashEvent,
+	OrderEvent,
+	PositionEvent,
+	SettledOrderEvent,
+	WatchOptions,
+	WatchResource,
+} from "./resources/watch";
+export type { WatchErrorEvent, Watcher, WatchListener } from "./watcher";
 
 export type * from "./types/public";
 export { VERSION } from "./version";

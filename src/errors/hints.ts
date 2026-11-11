@@ -19,7 +19,7 @@ export const HINTS = {
 			? "Trading 212 did not answer in time. Reads are retried automatically; this one ran out of attempts."
 			: "Trading 212 did not answer in time. Requests that change something are never retried automatically.",
 	outcomeUnknown:
-		"The request may or may not have gone through. Do not resend it blindly: check `orders.list()` and `history.orders.list()` first.",
+		"The request may or may not have gone through. Do not resend it blindly: `orders.findAfterUnknown(error)` looks for an order first, and `orders.list()` shows what is still pending.",
 	rateLimited: (endpoint: string | undefined, resetAt: number | undefined): string =>
 		`Wait${resetAt === undefined ? " a moment" : ` until ${new Date(resetAt).toISOString()}`} before calling ${endpoint ?? "this endpoint"} again. Limits apply per account, so every program using the same account shares them.`,
 	server: (kind: EndpointKind): string =>

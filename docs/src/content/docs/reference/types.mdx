@@ -50,11 +50,16 @@ Every other model in the spec is exported under its own name too.
 | `PlaceOptions`                                                                         | `CallOptions` plus `dryRun`                                                      |
 | `SellAllOptions`                                                                       | `PlaceOptions` plus `extendedHours`                                              |
 | `WaitOptions`                                                                          | `orders.waitFor()`'s `timeoutMs`, `intervalMs` and `signal`                      |
+| `CancelAllOptions`                                                                     | `CallOptions` plus `ticker`, for `orders.cancelAll()`                            |
+| `FindAfterUnknownOptions`                                                              | `CallOptions` plus `windowMs`, for `orders.findAfterUnknown()`                   |
+| `OpenOptions`, `WaitUntilOpenOptions`                                                  | `exchanges.isOpen()` and `exchanges.waitUntilOpen()`                             |
+| `DividendTotalOptions`                                                                 | `since`, `until` and `ticker`, for `history.dividends.total()`                   |
+| `WatchOptions`                                                                         | `{ intervalMs?, signal? }`, for every watcher                                    |
 | `ListOptions`, `SearchOptions`, `ResolveOptions`                                       | The instrument list, `search()` and `resolve()`                                  |
 | `PageOptions`, `IterateOptions`                                                        | History's `list()` and `all()`                                                   |
 | `ReportRequest`, `ReportWaitOptions`                                                   | Reports' request and waiting                                                     |
 | `CacheStore`                                                                           | A cache of your own                                                              |
-| `Hooks`                                                                                | `onRequest`, `onResponse`, `onRetry` and `onRateLimitWait`                       |
+| `Hooks`                                                                                | `onRequest`, `onResponse`, `onRetry`, `onRateLimitWait` and `onError`            |
 | `FetchLike`                                                                            | A `fetch` of your own                                                            |
 | `EnvSource`                                                                            | An object of environment variables, for `fromEnv()`                              |
 
@@ -70,6 +75,19 @@ Every other model in the spec is exported under its own name too.
 | `Page`                                 | One page of history                                  |
 | `ExportResult`                         | `{ report, csv }`, from `reports.export()`           |
 | `EndpointBudget`                       | One endpoint's entry in `rateLimits()`               |
+| `CancelResult`                         | One order's result in `orders.cancelAll()`           |
+| `OrderSearchResult`                    | What `orders.findAfterUnknown()` returns             |
+| `DividendTotals`                       | What `history.dividends.total()` returns             |
+
+## Watchers
+
+| Type                              | Is                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `Watcher`                         | What every `watch` method returns: `on()`, `stop()`, `stopped`, a loop |
+| `OrderEvent`, `SettledOrderEvent` | What `watch.orders()` reports, and how an order ended                  |
+| `PositionEvent`, `CashEvent`      | What `watch.positions()` and `watch.cash()` report                     |
+| `WatchErrorEvent`                 | `{ type: "error", error, willRetry }`, a check that failed             |
+| `WatchListener`                   | A callback for `on()`, which may be `async`                            |
 
 ## Errors
 
@@ -85,11 +103,11 @@ Every other model in the spec is exported under its own name too.
 
 ## Logging, hooks and endpoints
 
-| Type                                                                                                                                                                                         | Is                                                |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `Logger`, `LogLevel`, `LogFields`                                                                                                                                                            | A logger, its levels and its fields               |
-| `ConsoleLike`, `FieldsFirstMethod`                                                                                                                                                           | What `consoleLogger()` and `fieldsFirst()` accept |
-| `RequestEvent`, `ResponseEvent`, `RetryEvent`, `RateLimitWaitEvent`                                                                                                                          | What each hook receives                           |
-| `RateLimitInfo`                                                                                                                                                                              | What the rate-limit headers said                  |
-| `EndpointDefinition`, `EndpointId`, `EndpointKind`, `EndpointRateLimit`, `HttpMethod`                                                                                                        | One entry of `ENDPOINTS`, and its parts           |
-| `AccountResource`, `PositionsResource`, `PortfolioResource`, `InstrumentsResource`, `ExchangesResource`, `OrdersResource`, `HistoryResource`, `PagedList`, `ReportsResource`, `PiesResource` | The client's properties                           |
+| Type                                                                                                                                                                                                                          | Is                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `Logger`, `LogLevel`, `LogFields`                                                                                                                                                                                             | A logger, its levels and its fields               |
+| `ConsoleLike`, `FieldsFirstMethod`                                                                                                                                                                                            | What `consoleLogger()` and `fieldsFirst()` accept |
+| `RequestEvent`, `ResponseEvent`, `RetryEvent`, `RateLimitWaitEvent`, `RequestErrorEvent`                                                                                                                                      | What each hook receives                           |
+| `RateLimitInfo`                                                                                                                                                                                                               | What the rate-limit headers said                  |
+| `EndpointDefinition`, `EndpointId`, `EndpointKind`, `EndpointRateLimit`, `HttpMethod`                                                                                                                                         | One entry of `ENDPOINTS`, and its parts           |
+| `AccountResource`, `PositionsResource`, `PortfolioResource`, `InstrumentsResource`, `ExchangesResource`, `OrdersResource`, `HistoryResource`, `PagedList`, `DividendList`, `ReportsResource`, `PiesResource`, `WatchResource` | The client's properties                           |

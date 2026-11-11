@@ -91,7 +91,13 @@ The API only takes a number of shares. You can work one out from a price you alr
 
 ### …see what the client is doing?
 
-Pass `logger: consoleLogger({ level: "debug" })`. See [Logging and hooks](/Trading212.js/guides/logging/).
+Pass `logger: "debug"`, or set `T212_LOG=debug` when using `Trading212.fromEnv()`. See
+[Logging and hooks](/Trading212.js/guides/logging/).
+
+### …know when an order fills?
+
+`orders.waitFor(order)` waits for one order. To hear about every order, including ones placed in the app, use
+`t212.watch.orders()`; see [Watching the account](/Trading212.js/guides/watching/).
 
 ### …keep my key safe?
 

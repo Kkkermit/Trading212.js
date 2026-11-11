@@ -70,6 +70,17 @@ export class CachedLoader {
 		this.#onError = onError;
 	}
 
+	/** The cached value, without loading it when it is missing. A failing store counts as a miss. */
+	async peek<T>(key: string, accept: (value: unknown) => value is T): Promise<T | undefined> {
+		try {
+			const cached = await this.#store.get(key);
+			return accept(cached) ? cached : undefined;
+		} catch (error) {
+			this.#onError(error, key);
+			return undefined;
+		}
+	}
+
 	/**
 	 * The shared load is started without any caller's signal, so one caller giving up never fails the others; each
 	 * caller stops waiting when its own `signal` aborts.

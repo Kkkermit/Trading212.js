@@ -1,5 +1,6 @@
 import type { CachedLoader } from "../cache";
 import type { FetchLike, Transport } from "../http/transport";
+import type { Logger } from "../logging/logger";
 
 /** What every resource shares with the client that created it. */
 export interface ResourceContext {
@@ -11,4 +12,6 @@ export interface ResourceContext {
 	/** For downloads that must not carry credentials, such as signed report links. */
 	readonly fetch: FetchLike;
 	readonly timeoutMs: number;
+	/** The client's logger, already redacting. */
+	readonly logger: Logger;
 }

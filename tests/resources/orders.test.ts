@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { NotFoundError, OrderRejectedError, TimeoutError, ValidationError } from "../../src/errors/errors";
+import {
+	NotFoundError,
+	OrderOutcomeUnknownError,
+	OrderRejectedError,
+	TimeoutError,
+	ValidationError,
+} from "../../src/errors/errors";
 import { createFakeTrading212 } from "../../src/testing";
 
 import { hangingFetch, scripted } from "../helpers";
@@ -172,5 +178,166 @@ describe("sellAll without an available quantity", () => {
 		]);
 		await expect(client.orders.sellAll("AAPL_US_EQ")).rejects.toThrow("did not say how much");
 		expect(requests).toHaveLength(1);
+	});
+});
+
+describe("cancelAll", () => {
+	const limit = { ticker: "AAPL_US_EQ", quantity: 1, limitPrice: 1, timeValidity: "DAY" } as const;
+
+	it("cancels every pending order, or one ticker's, and counts an order already gone as done", async () => {
+		const { client, server } = createFakeTrading212({ state: { positions: [{ ticker: "MSFT_US_EQ", quantity: 5 }] } });
+		const apple = await client.orders.limit(limit);
+		await client.orders.limit({ ...limit, quantity: 2 });
+		const microsoft = await client.orders.limit({ ...limit, ticker: "MSFT_US_EQ", quantity: -1, limitPrice: 999 });
+		server.failNext("cancelOrder", { status: 404, body: { type: "/api-errors/entity-not-found", title: "Not found" } });
+
+		const results = await client.orders.cancelAll({ ticker: "AAPL_US_EQ" });
+		expect(results.map(({ status, order }) => [status, order.id])).toEqual([
+			["gone", apple.id],
+			["requested", expect.any(Number)],
+		]);
+		expect((await client.orders.list()).map((order) => order.id)).toEqual([apple.id, microsoft.id]);
+		expect((await client.orders.cancelAll()).map((result) => result.status)).toEqual(["requested", "requested"]);
+		expect(await client.orders.list()).toEqual([]);
+	});
+
+	it("reports a failed cancellation in its result and carries on", async () => {
+		const { client, server } = createFakeTrading212();
+		await client.orders.limit(limit);
+		await client.orders.limit(limit);
+		server.failNext("cancelOrder", { status: 500, body: "boom" });
+		const [first, second] = await client.orders.cancelAll();
+		expect(first).toMatchObject({ status: "failed", error: { code: "outcome_unknown" } });
+		expect(second?.status).toBe("requested");
+	});
+
+	it("stops before cancelling anything when trading is off", async () => {
+		const { client, server } = createFakeTrading212({ client: { trading: "disabled" } });
+		server.pending.set(1, { order: { id: 1, ticker: "AAPL_US_EQ" }, reservedCash: 0, reservedShares: 0 });
+		await expect(client.orders.cancelAll()).rejects.toMatchObject({ code: "trading_disabled" });
+		expect(server.pending.size).toBe(1);
+	});
+});
+
+describe("findAfterUnknown", () => {
+	const buy = { ticker: "AAPL_US_EQ", quantity: 2 } as const;
+
+	/** A market order whose answer was lost: it filled on the fake, but the client saw a dropped connection. */
+	async function lostAnswer(fake = createFakeTrading212()) {
+		const { client, server } = fake;
+		const order = await client.orders.buy(buy);
+		server.requests.length = 0;
+		const error = new OrderOutcomeUnknownError("lost", {
+			request: { method: "POST", path: "/api/v0/equity/orders/market", endpoint: "placeMarketOrder" },
+			sent: { ticker: "AAPL_US_EQ", quantity: 2 },
+			sentAt: Date.now(),
+		});
+		return { client, server, order, error };
+	}
+
+	it("finds an order that went through, in the history or still pending", async () => {
+		const { client, order, error } = await lostAnswer();
+		expect(await client.orders.findAfterUnknown(error)).toEqual({
+			status: "found",
+			where: "history",
+			order: expect.objectContaining({ id: order.id, status: "FILLED" }),
+		});
+
+		const fake = createFakeTrading212();
+		const pending = await fake.client.orders.limit({ ...buy, limitPrice: 1, timeValidity: "DAY" });
+		const limitError = new OrderOutcomeUnknownError("timed out", {
+			request: { method: "POST", path: "/api/v0/equity/orders/limit", endpoint: "placeLimitOrder" },
+			sent: { ...buy, limitPrice: 1, timeValidity: "DAY" },
+			sentAt: Date.now(),
+		});
+		expect(await fake.client.orders.findAfterUnknown(limitError)).toMatchObject({
+			status: "found",
+			where: "pending",
+			order: { id: pending.id },
+		});
+	});
+
+	it("says there is no sign of an order that never arrived", async () => {
+		const { client, error } = await lostAnswer();
+		const other = new OrderOutcomeUnknownError("lost", {
+			request: error.request ?? { method: "POST", path: "" },
+			sent: { ticker: "AAPL_US_EQ", quantity: -2 },
+			sentAt: Date.now(),
+		});
+		expect(await client.orders.findAfterUnknown(other)).toEqual({ status: "not-found" });
+	});
+
+	/** Without the time window, an identical order from yesterday would pass for the one that was lost. */
+	it("ignores matching orders created long before it was sent", async () => {
+		const { client, server, error } = await lostAnswer();
+		for (const item of server.orderHistory) {
+			if (item.order) item.order.createdAt = new Date(Date.now() - 86_400_000).toISOString();
+		}
+		expect(await client.orders.findAfterUnknown(error)).toEqual({ status: "not-found" });
+	});
+
+	it("cannot tell when several recent orders match", async () => {
+		const { client, error } = await lostAnswer();
+		await client.orders.buy(buy);
+		expect(await client.orders.findAfterUnknown(error)).toMatchObject({
+			status: "unclear",
+			reason: "2 recent orders match it",
+			matches: [{ status: "FILLED" }, { status: "FILLED" }],
+		});
+	});
+
+	it("cannot tell when the history is too busy to search back far enough", async () => {
+		const { client, server, error } = await lostAnswer(createFakeTrading212({ state: { cash: 1_000_000 } }));
+		for (let index = 0; index < 200; index++) server.orderHistory.push({ order: { id: index, ticker: "AAPL_US_EQ" } });
+		expect(await client.orders.findAfterUnknown(error)).toMatchObject({
+			status: "unclear",
+			reason: "the history holds too many recent orders to search",
+		});
+		expect(server.requests.filter((request) => request.path.includes("history"))).toHaveLength(4);
+	});
+
+	it("only looks for orders that were placed, and sends nothing", async () => {
+		const { client, server } = createFakeTrading212();
+		await expect(client.orders.findAfterUnknown(new Error("nope"))).rejects.toBeInstanceOf(ValidationError);
+		const cancel = new OrderOutcomeUnknownError("lost", {
+			request: { method: "DELETE", path: "/api/v0/equity/orders/1", endpoint: "cancelOrder" },
+		});
+		await expect(client.orders.findAfterUnknown(cancel)).rejects.toThrow("from cancelOrder");
+		await expect(client.orders.findAfterUnknown(new OrderOutcomeUnknownError("lost", {}))).rejects.toThrow(
+			"from elsewhere",
+		);
+		expect(server.requests).toHaveLength(0);
+	});
+
+	it("reads only, whatever it finds", async () => {
+		const { client, server, error } = await lostAnswer();
+		await client.orders.findAfterUnknown(error);
+		expect(server.requests.map((request) => request.method)).toEqual(["GET", "GET"]);
+	});
+});
+
+describe("the maxOpenQuantity check", () => {
+	it("refuses an order above the cached limit without sending it", async () => {
+		const { client, server } = createFakeTrading212({ state: { cash: 10_000_000 } });
+		await client.instruments.list();
+		server.requests.length = 0;
+		await expect(client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 10_001 })).rejects.toMatchObject({
+			code: "validation",
+			issues: [{ field: "quantity", message: "is more than the maxOpenQuantity of 10000" }],
+		});
+		await expect(client.orders.sell({ ticker: "AAPL_US_EQ", quantity: 10_001 }, { dryRun: true })).rejects.toThrow(
+			"more than the 10000",
+		);
+		expect(server.requests).toHaveLength(0);
+		await client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 10_000 });
+	});
+
+	it("never downloads the instrument list for it, and lets Trading 212 decide when it is not cached", async () => {
+		const { client, server } = createFakeTrading212({ state: { cash: 10_000_000 } });
+		await expect(client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 10_001 })).rejects.toMatchObject({
+			reason: "max-quantity-exceeded",
+			maxQuantity: 10_000,
+		});
+		expect(server.requests.map((request) => request.path)).toEqual(["/api/v0/equity/orders/market"]);
 	});
 });

@@ -15,6 +15,10 @@ export interface Logger {
 
 const LEVELS: Readonly<Record<LogLevel, number>> = { debug: 10, info: 20, warn: 30, error: 40 };
 
+export function isLogLevel(value: unknown): value is LogLevel {
+	return typeof value === "string" && Object.hasOwn(LEVELS, value);
+}
+
 const noop = (): void => undefined;
 
 /** The default: says nothing. */

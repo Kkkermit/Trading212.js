@@ -46,6 +46,11 @@ function matchScore(instrument: Instrument, query: string): number {
 	return 0;
 }
 
+/** Where the instrument list is cached for one account. */
+export function instrumentsCacheKey(namespace: string): string {
+	return `${namespace}:instruments`;
+}
+
 // An entry without a ticker cannot be traded or looked up, so it is left out.
 function hasTicker(instrument: TradableInstrument): instrument is Instrument {
 	return typeof instrument.ticker === "string" && instrument.ticker !== "";
@@ -74,7 +79,7 @@ export class InstrumentsResource {
 		const { refresh = false, signal } = options;
 		const { cache, cacheNamespace, metadataTtlMs, transport } = this.#context;
 		return cache.load(
-			`${cacheNamespace}:instruments`,
+			instrumentsCacheKey(cacheNamespace),
 			{ ttlMs: metadataTtlMs, refresh, signal, accept: isList<Instrument> },
 			async () => {
 				const { data } = await transport.request<TradableInstrument[] | undefined>(ENDPOINTS.listInstruments);

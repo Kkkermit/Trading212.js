@@ -6,7 +6,7 @@ import { type EndpointId } from "./http/endpoints.generated";
 import { type EndpointBudget, RateLimiter } from "./http/rateLimiter";
 import { type CallOptions, type FetchLike, Transport } from "./http/transport";
 import { fingerprint } from "./internal/hash";
-import { safeLogger, silentLogger } from "./logging/logger";
+import { safeLogger } from "./logging/logger";
 import { createRedactor, createSecretFilter } from "./logging/redact";
 import { AccountResource } from "./resources/account";
 import type { ResourceContext } from "./resources/context";
@@ -18,6 +18,7 @@ import { PiesResource } from "./resources/pies";
 import { PortfolioResource } from "./resources/portfolio";
 import { PositionsResource } from "./resources/positions";
 import { ReportsResource } from "./resources/reports";
+import { WatchResource } from "./resources/watch";
 import { VERSION } from "./version";
 
 /** What `verify()` learnt about the key. */
@@ -58,6 +59,8 @@ export class Trading212 {
 	readonly reports: ReportsResource;
 	/** The account summary and positions combined. */
 	readonly portfolio: PortfolioResource;
+	/** Watchers that report orders, positions and cash changing. */
+	readonly watch: WatchResource;
 	/**
 	 * Pies.
 	 *
@@ -72,7 +75,7 @@ export class Trading212 {
 		const authorization = basicAuthorization(resolved.apiKey, resolved.apiSecret);
 		const secrets = [resolved.apiKey, resolved.apiSecret, authorization.slice("Basic ".length)];
 		const redact = createRedactor(secrets);
-		const logger = safeLogger(options.logger ?? silentLogger, redact);
+		const logger = safeLogger(resolved.logger, redact);
 		const fetchImpl: FetchLike | undefined =
 			options.fetch ?? (globalThis.fetch as FetchLike | undefined)?.bind(globalThis);
 		if (!fetchImpl) {
@@ -115,6 +118,7 @@ export class Trading212 {
 			metadataTtlMs: resolved.metadataTtlMs,
 			fetch: fetchImpl,
 			timeoutMs: resolved.timeoutMs,
+			logger,
 		};
 		this.account = new AccountResource(context);
 		this.positions = new PositionsResource(context);
@@ -124,6 +128,7 @@ export class Trading212 {
 		this.orders = new OrdersResource(context, this.positions, this.history.orders);
 		this.reports = new ReportsResource(context);
 		this.portfolio = new PortfolioResource(this.account, this.positions);
+		this.watch = new WatchResource(this.account, this.positions, this.orders, this.history.orders, logger);
 		// eslint-disable-next-line @typescript-eslint/no-deprecated -- deprecated upstream, still offered
 		this.pies = new PiesResource(context);
 	}

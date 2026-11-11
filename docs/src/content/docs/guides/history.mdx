@@ -14,9 +14,21 @@ import Example from "../../../components/Example.astro";
 Each allows 20 requests a minute, and each has the same two methods: `list()` for one page and `all()` for every
 item.
 
-## Every item
+## Dividend totals
 
 <Example name="dividends-total" />
+
+`history.dividends.total()` adds up the dividends paid from `since` up to, but not including, `until`, both optional,
+for every ticker or one `ticker`. It returns `{ total, count, currency, byTicker }`, with each ticker's total largest
+first, and stops reading pages once it passes `since`, so a recent range costs one or two requests.
+
+## Every item
+
+```ts
+for await (const dividend of t212.history.dividends.all({ ticker: "AAPL_US_EQ" })) {
+	console.log(dividend.paidOn, dividend.amount);
+}
+```
 
 `all()` fetches pages as the loop asks for them, newest first. It takes:
 

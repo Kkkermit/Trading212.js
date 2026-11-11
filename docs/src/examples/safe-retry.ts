@@ -8,16 +8,16 @@ try {
 } catch (error) {
 	if (!(error instanceof OrderOutcomeUnknownError)) throw error;
 
-	// The order may have gone through. Look for it before sending it again.
-	const pending = await t212.orders.list();
-	const page = await t212.history.orders.list({ ticker: request.ticker, limit: 10 });
-	const recentlyFilled = page.items.some(({ order }) => order?.ticker === request.ticker);
-	const stillWorking = pending.some((order) => order.ticker === request.ticker);
+	// The order may have gone through. Give Trading 212 a moment to list it, then look.
+	await new Promise((resolve) => setTimeout(resolve, 5000));
+	const result = await t212.orders.findAfterUnknown(error);
 
-	if (stillWorking || recentlyFilled) {
-		console.log("The first attempt reached Trading 212. Not sending it again.");
-	} else {
+	if (result.status === "found") {
+		console.log(`It reached Trading 212 (${result.order.status}). Not sending it again.`);
+	} else if (result.status === "not-found") {
 		console.log("No sign of it, so sending it once more.");
 		await t212.orders.buy(request);
+	} else {
+		console.log(`Cannot tell (${result.reason}). Check the app before trying again.`);
 	}
 }

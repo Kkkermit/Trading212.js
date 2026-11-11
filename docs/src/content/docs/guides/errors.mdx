@@ -150,10 +150,12 @@ read, including a redirect it refused to follow with your credentials).
 
 Code `outcome_unknown`. **An order, cancellation or pie change may or may not have happened**: it timed out, the
 connection dropped, the call was aborted after sending, Trading 212 answered 5xx or with a redirect, or it answered
-with a success the client could not read. `error.sent` holds what was sent.
+with a success the client could not read. `error.sent` holds what was sent, and `error.sentAt` when.
 
 <Aside type="danger" title="Never resend blindly">
-	Check `orders.list()` and `history.orders.list()` before trying again. The first attempt may have filled.
+	The first attempt may have filled. For an order, `orders.findAfterUnknown(error)` looks for it among the working
+	orders and the history before you decide; see [Finding an order whose outcome is
+	unknown](/Trading212.js/guides/orders/#finding-an-order-whose-outcome-is-unknown).
 </Aside>
 
 ### `TimeoutError`

@@ -23,17 +23,18 @@ A real client wired to an in-memory Trading 212. Rate limiting is off and tradin
 
 Every field is optional.
 
-| Field          | Default                                                 |
-| -------------- | ------------------------------------------------------- |
-| `cash`         | 10,000                                                  |
-| `currency`     | `GBP`; prices are treated as already in it              |
-| `accountId`    | 12345678                                                |
-| `prices`       | `{ [ticker]: price }`; a ticker without one costs 100   |
-| `positions`    | `[{ ticker, quantity, averagePrice?, inPies? }]`        |
-| `instruments`  | `DEFAULT_INSTRUMENTS`                                   |
-| `dividends`    | none                                                    |
-| `transactions` | none                                                    |
-| `exchanges`    | A weekday schedule for each default instrument's market |
+| Field           | Default                                                       |
+| --------------- | ------------------------------------------------------------- |
+| `cash`          | 10,000                                                        |
+| `minOrderValue` | 1: orders worth less are refused with `min-quantity-exceeded` |
+| `currency`      | `GBP`; prices are treated as already in it                    |
+| `accountId`     | 12345678                                                      |
+| `prices`        | `{ [ticker]: price }`; a ticker without one costs 100         |
+| `positions`     | `[{ ticker, quantity, averagePrice?, inPies? }]`              |
+| `instruments`   | `DEFAULT_INSTRUMENTS`                                         |
+| `dividends`     | none                                                          |
+| `transactions`  | none                                                          |
+| `exchanges`     | A weekday schedule for each default instrument's market       |
 
 ## Controls
 
@@ -55,6 +56,7 @@ Every field is optional.
 | `marketOpen`                                           | Set `false` to refuse every order with `market-closed`                       |
 | `exportsOnDemo`                                        | Set `true` to offer CSV exports on demo                                      |
 | `cash`                                                 | Free cash                                                                    |
+| `minOrderValue`                                        | The smallest order value it accepts; set 0 to accept any                     |
 | `currency`, `accountId`, `environment`                 | As set up                                                                    |
 | `holdings`                                             | A `Map` of ticker to `{ ticker, quantity, averagePrice, inPies, createdAt }` |
 | `pending`                                              | A `Map` of order ID to `{ order, reservedCash, reservedShares }`             |

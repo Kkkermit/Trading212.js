@@ -175,6 +175,7 @@ export interface ResponseContext {
 	readonly environment: Environment;
 	readonly rateLimit: RateLimitInfo | undefined;
 	readonly sent?: unknown;
+	readonly sentAt?: number;
 	readonly now: number;
 }
 
@@ -198,7 +199,12 @@ export function errorFromResponse(context: ResponseContext): Trading212Error {
 	if (kind === "trade" && (status === 408 || status >= 500)) {
 		return new OrderOutcomeUnknownError(
 			`${where} may or may not have gone through: Trading 212 answered ${answered}${parsed.message ? `: ${parsed.message}` : ""}.`,
-			{ ...details, hint: HINTS.outcomeUnknown, sent: context.sent },
+			{
+				...details,
+				hint: HINTS.outcomeUnknown,
+				sent: context.sent,
+				...(context.sentAt !== undefined && { sentAt: context.sentAt }),
+			},
 		);
 	}
 
