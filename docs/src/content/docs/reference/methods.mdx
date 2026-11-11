@@ -120,6 +120,26 @@ Whether an instrument's market is open at `at` (default now), and when that next
 `InstrumentNotFoundError` for an unknown ticker. See
 [Market hours](/Trading212.js/guides/instruments-and-markets/#market-hours) for the fields.
 
+### `exchanges.isOpen()`
+
+```ts
+isOpen(ticker: string | TradableInstrument, options?: OpenOptions): Promise<boolean>
+```
+
+Whether the market is open now. `OpenOptions` is `{ extendedHours?, refresh?, signal? }`: with
+`extendedHours: true`, pre-market, after-hours and overnight sessions count as open too.
+
+### `exchanges.waitUntilOpen()`
+
+```ts
+waitUntilOpen(ticker: string | TradableInstrument, options?: WaitUntilOpenOptions): Promise<MarketStatus>
+```
+
+Resolves with the market's status once it opens, or straight away if it is open now. It sleeps until the opening the
+schedule gives rather than checking over and over. `WaitUntilOpenOptions` adds `timeoutMs` to `OpenOptions`: with
+one, it throws `TimeoutError` straight away if the market opens after that, and there is no limit without one. When
+the schedule does not say when it opens, it checks again every hour until the timeout. Stop it early with `signal`.
+
 ## Orders
 
 Placing, cancelling and changing orders needs `orders:execute`; on live, also `trading: "enabled"`, or it throws
@@ -239,6 +259,38 @@ cancel(id: number, options?: CallOptions): Promise<void>
 Asks Trading 212 to cancel a working order; it may still fill first. Throws `NotFoundError` when it has already gone.
 Limit 50 per minute.
 
+### `orders.cancelAll()`
+
+```ts
+cancelAll(options?: CancelAllOptions): Promise<CancelResult[]>
+```
+
+Cancels every working order, or one ticker's with `{ ticker }`, one request each in turn, and returns a
+`CancelResult` per order: `requested` when Trading 212 accepted the cancellation (it may still fill first), `gone`
+when the order had already filled or been cancelled, `unknown` with an `OrderOutcomeUnknownError` when it may or may
+not have arrived, or `failed` with the `error`. A failure does not stop the rest. Throws `TradingDisabledError`
+before cancelling anything when trading is off, and the signal's reason when it aborts, before the next order.
+
+### `orders.findAfterUnknown()`
+
+```ts
+findAfterUnknown(error: OrderOutcomeUnknownError, options?: FindAfterUnknownOptions): Promise<OrderSearchResult>
+```
+
+After placing an order threw `OrderOutcomeUnknownError`, looks for it among the working orders and the recent
+history, and never sends anything. The `OrderSearchResult` is one of:
+
+- `{ status: "found", order, where }`: it reached Trading 212, so do not send it again. `where` is `pending` or
+  `history`; check `order.status`, as it may have been rejected.
+- `{ status: "not-found" }`: nothing like it is working or in the recent history.
+- `{ status: "unclear", reason, matches }`: several orders match, one is like it but differs in a detail, or nothing
+  matches in the 200 newest orders for the ticker but its history goes further back, so it cannot say.
+
+An order matches when its ticker, direction, type, quantity and prices are those sent, and it was created within
+`windowMs` (default 5 minutes) of the error's `sentAt`. One with the same ticker, direction and time that differs in
+another detail makes the answer `unclear`, never `not-found`. Throws `ValidationError` for an error that did not come
+from placing an order. Needs `orders:read` and `history:orders`.
+
 ## History
 
 `history.orders`, `history.dividends` and `history.transactions` each have the same two methods. Permissions
@@ -260,6 +312,50 @@ all(options?: { pageSize?: number; maxPages?: number; maxItems?: number; cursor?
 ```
 
 Every item, fetching pages as a `for await` loop asks for them. A failure part-way carries `resumeCursor`.
+
+### `history.dividends.total()`
+
+```ts
+total(options?: DividendTotalOptions): Promise<DividendTotals>
+```
+
+Adds up the dividends paid from `since` (inclusive) to `until` (exclusive), both optional, for every ticker or one
+with `ticker`. Returns `{ total, count, currency, byTicker }`, where `byTicker` lists each ticker's total, largest
+first. It reads every page of the dividend history, one request per 50 payments, because the spec does not say the
+history is sorted.
+
+## Watch
+
+Each watcher checks the account every `intervalMs` (default 5 s) and returns a `Watcher`. Its first check only
+records where things stand; events start from the second. See [Watching the account](/Trading212.js/guides/watching/).
+
+### `watch.orders()`
+
+```ts
+orders(options?: WatchOptions): Watcher<OrderEvent>
+```
+
+Reports `placed`, `updated`, `filled`, `cancelled`, `rejected`, `replaced` and `gone` events, including for orders
+placed elsewhere. Each check reads the working orders and the newest page of the history, so it needs `orders:read`
+and `history:orders`.
+
+### `watch.positions()`
+
+```ts
+positions(options?: WatchOptions): Watcher<PositionEvent>
+```
+
+Reports `opened`, `changed` (the quantity held changed) and `closed` events. Price moves alone are not reported.
+Needs `portfolio`.
+
+### `watch.cash()`
+
+```ts
+cash(options?: WatchOptions): Watcher<CashEvent>
+```
+
+Reports a `changed` event when cash available to trade, reserved for orders or held in pies changes. Needs
+`account`.
 
 ## Reports
 

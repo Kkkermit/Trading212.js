@@ -108,6 +108,7 @@ describe("credentials never leak", () => {
 			onResponse: (event: unknown) => events.push(event),
 			onRetry: (event: unknown) => events.push(event),
 			onRateLimitWait: (event: unknown) => events.push(event),
+			onError: (event: unknown) => events.push(event),
 		};
 		const { client } = scripted([{ status: 503, body: { message: API_SECRET } }, { body: {} }, echo, networkError()], {
 			logger,
@@ -118,6 +119,7 @@ describe("credentials never leak", () => {
 		await client.orders.market({ ticker: "AAPL_US_EQ", quantity: 1 }).catch(() => undefined);
 		expect(lines.length).toBeGreaterThan(3);
 		expect(events.length).toBeGreaterThan(3);
+		expect(events.filter((event) => (event as { error?: unknown }).error instanceof Trading212Error)).toHaveLength(3);
 		expect(leaks(lines)).toEqual([]);
 		expect(leaks(events)).toEqual([]);
 	});

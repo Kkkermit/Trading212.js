@@ -15,9 +15,9 @@ Totals, then every holding with its value, weight and profit, formatted in the a
 
 <Example name="portfolio-report" />
 
-## Total your dividends by ticker
+## Total your dividends for a tax year
 
-Walks the whole dividend history, page by page, and adds it up.
+Adds up the dividends paid in one UK tax year, in total and per ticker.
 
 <Example name="dividends-total" />
 
@@ -30,14 +30,33 @@ fills or you cancel it. This program shows every order type.
 
 ## Resend an order safely
 
-When an order's outcome is unknown, it may have gone through. Look before you send it again:
+When an order's outcome is unknown, it may have gone through. `findAfterUnknown()` looks for it before you send it
+again:
 
 <Example name="safe-retry" />
 
 <Aside type="caution">
-	This is a starting point, not a guarantee: a matching order in the history might be an older one. Compare the time and
-	quantity too if you place the same order often.
+	If you place the same order often, two of them can match. The result is then `unclear` rather than a guess; check the
+	app before sending it again.
 </Aside>
+
+## Hear when an order fills
+
+Runs in the background and reports fills and cancellations, including orders placed in the app.
+
+<Example name="watch-orders" />
+
+## Buy at the open
+
+Waits for the market to open, then buys.
+
+<Example name="market-wait" />
+
+## Cancel every working order
+
+Cancels each order in turn and says what happened to it.
+
+<Example name="cancel-pending" />
 
 ## A report on a schedule
 

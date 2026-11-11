@@ -62,7 +62,11 @@ Before any request, the client checks that:
 - the quantity is a finite number, not zero, with at most **4 decimal places**;
 - prices are positive;
 - `timeValidity` is `"DAY"` or `"GOOD_TILL_CANCEL"`;
-- no field is given that the order type does not use.
+- no field is given that the order type does not use;
+- a buy is for no more than the instrument's `maxOpenQuantity`, once this client has loaded the instrument list, for
+  example through `instruments.resolve()`. The spec does not define that field; the client reads it as the most of
+  an instrument an account may hold. Sells are never checked, so a lowered limit cannot stop you selling what you
+  hold, and the list is never downloaded for this, so without it Trading 212 makes the call.
 
 Every problem goes into one `ValidationError`, with `error.issues` listing them. Nothing is sent.
 
@@ -100,8 +104,16 @@ difference: `{ dryRun: true }` returns a `DryRunResult`, and anything else an `O
 
 <Example name="cancel-pending" />
 
+`cancelAll()` cancels every working order, or one ticker's, one request each, and returns a result per order:
+`requested`, `gone` when it had already filled or been cancelled, `unknown` when the cancellation may or may not have
+arrived, or `failed` with the error. One failure does not stop the rest; aborting its `signal` stops it before the
+next order.
+
 A successful `cancel()` means Trading 212 accepted the request; the order can still fill first. Cancelling an order
 that has already gone throws `NotFoundError`. At most 50 orders may be pending per ticker.
+
+To hear when orders fill or are cancelled without asking yourself, use a
+[watcher](/Trading212.js/guides/watching/).
 
 ## When an order fails
 
@@ -110,7 +122,7 @@ that has already gone throws `NotFoundError`. At most 50 orders may be pending p
 | `ValidationError`              | Refused before sending; fix what `error.issues` lists                               |
 | `OrderRejectedError`           | Refused by Trading 212; `error.reason` is its code, such as `min-quantity-exceeded` |
 | `TradingDisabledError`         | Trading is off for this client, as it is on live by default; nothing was sent       |
-| `OrderOutcomeUnknownError`     | It may have gone through. Check `orders.list()` and `history.orders.list()` first   |
+| `OrderOutcomeUnknownError`     | It may have gone through. `orders.findAfterUnknown(error)` looks for it             |
 | `NetworkError` (`sent: false`) | It never left your machine, so it is safe to send again                             |
 | `MissingScopeError`            | The key lacks `orders:execute`                                                      |
 
@@ -118,6 +130,26 @@ that has already gone throws `NotFoundError`. At most 50 orders may be pending p
 	An order is never retried automatically. When the outcome is unknown, look before you send it again; the [safe retry
 	recipe](/Trading212.js/recipes/#resend-an-order-safely) shows how.
 </Aside>
+
+## Finding an order whose outcome is unknown
+
+<Example name="safe-retry" />
+
+`findAfterUnknown(error)` takes the `OrderOutcomeUnknownError` and looks for the order among the working orders and
+the recent history, matching its ticker, direction, type, quantity and prices, and only orders created within five
+minutes of `error.sentAt` (change it with `windowMs`). It never sends anything, so whether to place the order again
+stays your decision:
+
+| `status`    | Means                                                                                                    |
+| ----------- | -------------------------------------------------------------------------------------------------------- |
+| `found`     | It reached Trading 212: do not send it again. Check `order.status`, as it may be rejected                |
+| `not-found` | Nothing like it is working or in the recent history                                                      |
+| `unclear`   | Several orders match, one is like it but differs, or none does but the history is too long to read whole |
+
+An order that has the same ticker, direction and time but differs in a detail, such as its quantity or where it was
+placed from, makes the answer `unclear` rather than `not-found`, so a detail Trading 212 lists differently can never
+make an order that went through look as if it did not. When the answer is `unclear`, check the app before sending
+anything. Trading 212 does not say how long a new order takes to appear in its lists, so wait a few seconds and look twice before deciding it was not placed, as the example does. It needs `orders:read` and `history:orders`.
 
 A refusal says in plain words what the order broke, such as
 `a quantity of 0.1 is below the smallest Trading 212 accepts for this order, 1.33914872.`, and carries the limit as a

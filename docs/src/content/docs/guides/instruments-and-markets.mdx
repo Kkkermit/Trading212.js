@@ -65,6 +65,15 @@ It reads Trading 212's working schedules, which cover a limited window ahead, so
 a `Date` as the second argument to ask about another moment. `sessionAt(timeEvents, date)` is the same calculation as
 a pure function, for schedules you already have.
 
+## Waiting for the open
+
+<Example name="market-wait" />
+
+`isOpen(ticker)` says whether the market is open now, and `waitUntilOpen(ticker)` resolves with its status once it
+opens. Both count only regular hours unless you pass `extendedHours: true`. `waitUntilOpen()` sleeps until the
+opening the schedule gives rather than checking over and over, and checks again when it wakes. Pass `timeoutMs` to
+give up with a `TimeoutError`, straight away if the market opens later than that, or `signal` to stop it.
+
 <Aside>
 	Treat market hours as guidance. Trading 212 makes the final decision, and refuses an order with `market-closed`.
 </Aside>

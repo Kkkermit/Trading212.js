@@ -40,6 +40,7 @@ export default defineConfig({
 						"guides/account-and-portfolio",
 						"guides/instruments-and-markets",
 						"guides/history",
+						"guides/watching",
 						"guides/reports",
 						"guides/pies",
 						"guides/errors",

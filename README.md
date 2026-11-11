@@ -44,12 +44,15 @@ await t212.orders.waitFor(order); // FILLED
   the response headers, and shared by every client using the same key in your process. Calls are paced the way
   Trading 212 recommends, so you should not see a 429.
 - **Common tasks take one call.** Turn "Apple" into `AAPL_US_EQ`, sell a whole position without the
-  4-decimal-place error, wait for an order to fill, export a year of history as CSV in one call, check whether a
-  market is open, and get your portfolio's weights and profit in one call.
+  4-decimal-place error, wait for an order to fill, cancel every working order, total a year's dividends, export a
+  year of history as CSV, wait for a market to open, and get your portfolio's weights and profit.
+- **Hear about changes.** `t212.watch.orders()`, `watch.positions()` and `watch.cash()` report fills, cancellations,
+  new positions and cash moving, with callbacks or a `for await` loop, as the API has no push updates of its own.
 - **Test without the network.** `createFakeTrading212()` gives you the real client talking to an in-memory Trading
   212 that fills orders, tracks cash and positions, paginates history, and fails on demand.
-- **`npx @kkkermit/trading212.js doctor`** checks your key, environment and every permission in one go.
-- **Small and modern.** Zero runtime dependencies, about 14 kB minified and compressed, ESM and CommonJS, full types.
+- **A read-only command line.** `npx @kkkermit/trading212.js doctor` checks your key, environment and every
+  permission in one go, and `summary`, `positions` and `orders` show the account, as tables or JSON.
+- **Small and modern.** Zero runtime dependencies, about 19 kB minified and compressed, ESM and CommonJS, full types.
   Works on Node 22+, Bun and Deno.
 
 ### How it compares
@@ -179,13 +182,15 @@ const trader = new Trading212({ environment: "live", apiKey, apiSecret, trading:
 
 - **Orders are never retried.** Reads are, with backoff.
 - **If an order may have executed** (a timeout, a dropped connection, a 5xx), you get `OrderOutcomeUnknownError`.
-  Check `orders.list()` and `history.orders.list()` before trying again. If the connection never opened (DNS failure,
-  connection refused), you get a `NetworkError` with `sent: false` instead, and it is safe to retry.
+  `orders.findAfterUnknown(error)` looks for the order before you decide whether to send it again. If the connection
+  never opened (DNS failure, connection refused), you get a `NetworkError` with `sent: false` instead, and it is safe
+  to retry.
 - **`buy()` and `sell()` take a positive quantity** and set the sign themselves, so a stray minus sign cannot turn a
   sale into a purchase. The low-level `market()`, `limit()`, `stop()` and `stopLimit()` follow the API's
   convention, where a negative quantity sells.
 - **Orders are checked before sending:** a ticker without spaces, at most 4 decimal places, a positive price,
-  `timeValidity` stated, and `extendedHours` on market orders only. Every problem is reported at once.
+  `timeValidity` stated, `extendedHours` on market orders only, and a buy of no more than the instrument's
+  `maxOpenQuantity` once the client has loaded the instrument list. Every problem is reported at once.
 
 ## Errors
 
@@ -234,10 +239,14 @@ import { consoleLogger, fieldsFirst } from "@kkkermit/trading212.js";
 
 new Trading212({ ...options, logger: consoleLogger({ level: "info" }) });
 // [trading212] INFO  POST /api/v0/equity/orders/market returned 200 in 212 ms endpoint=placeMarketOrder status=200 …
+new Trading212({ ...options, logger: "debug" }); // the same as consoleLogger({ level: "debug" }), or T212_LOG=debug
 new Trading212({ ...options, logger: fieldsFirst(pino()) }); // pino and bunyan take (fields, message)
 new Trading212({
 	...options,
-	hooks: { onResponse: ({ endpoint, status, durationMs }) => metrics.observe(endpoint, durationMs) },
+	hooks: {
+		onResponse: ({ endpoint, status, durationMs }) => metrics.observe(endpoint, durationMs),
+		onError: ({ error }) => Sentry.captureException(error), // once for every request that fails
+	},
 });
 ```
 
@@ -268,7 +277,8 @@ The full documentation is at **[kkkermit.github.io/Trading212.js](https://kkkerm
 - [Key concepts](https://kkkermit.github.io/Trading212.js/concepts/) and [your first program](https://kkkermit.github.io/Trading212.js/tutorial/), for beginners
 - [Recipes](https://kkkermit.github.io/Trading212.js/recipes/): complete programs for common tasks, in TypeScript and JavaScript
 - [API coverage](https://kkkermit.github.io/Trading212.js/reference/api-coverage/): every endpoint, its method, permission and limit
-- [Orders](https://kkkermit.github.io/Trading212.js/guides/orders/): order types, quantities, `sellAll`, `waitFor`, dry runs
+- [Orders](https://kkkermit.github.io/Trading212.js/guides/orders/): order types, quantities, `sellAll`, `waitFor`, `cancelAll`, dry runs
+- [Watching the account](https://kkkermit.github.io/Trading212.js/guides/watching/): hear when orders fill, positions change and cash moves
 - [Instruments and market hours](https://kkkermit.github.io/Trading212.js/guides/instruments-and-markets/), [history](https://kkkermit.github.io/Trading212.js/guides/history/),
   [CSV reports](https://kkkermit.github.io/Trading212.js/guides/reports/) and the [portfolio](https://kkkermit.github.io/Trading212.js/guides/account-and-portfolio/)
 - [Errors](https://kkkermit.github.io/Trading212.js/guides/errors/): every error, what causes it and how to fix it

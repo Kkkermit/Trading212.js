@@ -41,6 +41,14 @@ run("demo contract", () => {
 		await client.history.transactions.list({ limit: 1 });
 	});
 
+	// The spec does not say the history is sorted. This records whether demo lists it newest first; until it does,
+	// dividends.total() reads every page and findAfterUnknown() never stops at an old order.
+	it("lists the order history newest first", async () => {
+		const page = await client.history.orders.list({ limit: 50 });
+		const created = page.items.flatMap(({ order }) => (order?.createdAt ? [Date.parse(order.createdAt)] : []));
+		expect(created).toEqual([...created].sort((a, b) => b - a));
+	});
+
 	it("answers a missing order with NotFoundError", async () => {
 		await expect(client.orders.get(1)).rejects.toBeInstanceOf(NotFoundError);
 	});

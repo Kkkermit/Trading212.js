@@ -70,6 +70,24 @@ describe("the fake server", () => {
 			type: "/api-errors/quantity-precision-mismatch",
 		});
 		expect((await place({})).status).toBe(400);
+		expect(await (await place({ ticker: "AAPL_US_EQ", quantity: 10_001 })).json()).toMatchObject({
+			type: "/api-errors/max-quantity-exceeded",
+			detail: "Max quantity for single order is Optional[10000]",
+		});
+		expect(
+			await (await place({ ticker: "AAPL_US_EQ", quantity: 0.5, limitPrice: 1, timeValidity: "DAY" }, "limit")).json(),
+		).toMatchObject({ type: "/api-errors/min-quantity-exceeded", detail: "must trade at least 1" });
+		expect((await place({ ticker: "AAPL_US_EQ", quantity: 0.01 })).status).toBe(200);
+	});
+
+	it("refuses small orders as the real client reads them, with the minimum it needs", async () => {
+		const { client, server } = createFakeTrading212({ state: { minOrderValue: 3 } });
+		await expect(client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 0.01 })).rejects.toMatchObject({
+			reason: "min-quantity-exceeded",
+			minQuantity: 0.01304348,
+		});
+		server.minOrderValue = 0;
+		await client.orders.buy({ ticker: "AAPL_US_EQ", quantity: 0.0001 });
 	});
 
 	/** Users' tests should meet the errors demo really sends, as recorded in fixtures/errors.json. */

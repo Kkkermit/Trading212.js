@@ -62,10 +62,12 @@ describe("documentation", () => {
 			"orders",
 			"reports",
 			"pies",
+			"watch",
 		] as const;
 		const expected = [
 			...resources.flatMap((resource) => methodsOf(client[resource]).map((method) => `${resource}.${method}`)),
 			...methodsOf(client.history.orders).map((method) => `history.*.${method}`),
+			...methodsOf(client.history.dividends).map((method) => `history.dividends.${method}`),
 		];
 		const missing = expected.filter((name) => !methodsPage.includes(`### \`${name}()\``));
 		expect(missing).toEqual([]);

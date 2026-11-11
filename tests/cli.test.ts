@@ -22,6 +22,14 @@ describe("the command line", () => {
 		expect((await run(["version"])).out).toBe("0.0.0-test");
 	});
 
+	it("lists the read-only commands, and uses demo when no environment is named", async () => {
+		expect((await run(["--help"])).out).toMatch(/summary[\s\S]*positions[\s\S]*orders/);
+		const result = await run(["positions"], { T212_ENV: "" });
+		expect(result.code).toBe(1);
+		expect(result.err).toContain("T212_DEMO_API_KEY");
+		expect((await run(["orders", "--env", "live"])).err).toContain("T212_LIVE_API_KEY");
+	});
+
 	it("refuses unknown commands and options", async () => {
 		expect(await run(["frobnicate"])).toMatchObject({
 			code: 2,

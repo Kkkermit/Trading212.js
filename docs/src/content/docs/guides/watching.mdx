@@ -1,0 +1,66 @@
+---
+title: Watching the account
+description: Hear when orders fill, positions change and cash moves, with callbacks or a for await loop.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Example from "../../../components/Example.astro";
+
+Trading 212's API cannot tell you when something changes: there are no webhooks and no live updates. A **watcher**
+asks for you, every few seconds, and reports only what changed since the last time, such as an order filling or cash
+arriving.
+
+| Watcher             | Reports                                                                   | Permission                      |
+| ------------------- | ------------------------------------------------------------------------- | ------------------------------- |
+| `watch.orders()`    | Orders `placed`, `updated`, `filled`, `cancelled`, `rejected`, `replaced` | `orders:read`, `history:orders` |
+| `watch.positions()` | Positions `opened`, `changed` in size, or `closed`                        | `portfolio`                     |
+| `watch.cash()`      | Cash available, reserved for orders or held in pies `changed`             | `account`                       |
+
+Each reports changes made anywhere, including in the Trading 212 app. The first check only records where things
+stand, so events start from the second.
+
+## With callbacks
+
+<Example name="watch-orders" />
+
+`on(type, listener)` calls `listener` for every event of that type and returns a function that removes it. The
+listener may be `async`; one that throws is logged and skipped, and the watcher carries on. `stop()` ends the watcher,
+and `stopped` says whether it has ended.
+
+A `filled`, `cancelled`, `rejected` or `replaced` event comes from Trading 212's history, with the `fill` (its price
+and quantity) when there is one. A market order usually fills before any check sees it pending, so it is reported
+only as `filled`. An order that leaves the pending list without the history saying how it ended is reported as
+`gone` after five checks.
+
+Each check reads the newest 50 orders in the history, so orders that settle without ever being seen pending are
+found only if Trading 212 lists the history newest first. The spec does not say it does; an order that was seen
+pending is looked up by its ticker either way.
+
+## With a loop
+
+<Example name="watch-loop" />
+
+A `for await` loop receives every event in order. Leaving the loop, with `break` or `return`, stops the watcher, and so
+does aborting the `signal` you passed, which ends the loop without an error.
+
+## Errors
+
+A check that fails is reported as an `error` event, `{ type: "error", error, willRetry }`:
+
+- **`willRetry: true`**: a network failure, a timeout, a 5xx or a rate limit. The next check goes ahead as usual.
+- **`willRetry: false`**: an error that needs you, such as a missing permission or a key Trading 212 refused. The
+  watcher stops, logs a warning, and a loop over it throws the error.
+
+Every failed request also reaches the client's `onError` hook, if you set one; see
+[Logging and hooks](/Trading212.js/guides/logging/#hooks-for-metrics-and-tracing).
+
+## How often it checks
+
+`intervalMs` sets the time between checks, 5 s by default. Each check is one request, two for orders, and counts
+against the same per-endpoint [rate limits](/Trading212.js/guides/rate-limits/) as the rest of your program; asking
+for a shorter interval than an endpoint allows just makes the client wait for budget.
+
+<Aside>
+	A watcher keeps your program running until it stops, as a timer does. Call `stop()`, pass a `signal`, or leave the
+	loop when you are done.
+</Aside>

@@ -1,14 +1,18 @@
 ---
-title: The doctor
-description: The trading212 doctor command checks your key, environment and every permission without trading.
+title: The command line
+description: The trading212 command checks your key and permissions, and shows the account, positions and pending orders, without trading.
 ---
+
+The package includes a `trading212` command. It only ever reads: no command places or cancels an order, and none
+prints your key or secret.
 
 ```sh
 npx @kkkermit/trading212.js doctor --env-file .env
 ```
 
-The doctor signs in, then tries one read for each permission and reports which are missing. It never prints your key
-or secret, and never places an order.
+## The doctor
+
+`doctor` signs in, then tries one read for each permission and reports which are missing.
 
 ```
 trading212.js 0.1.0 doctor
@@ -22,6 +26,26 @@ trading212.js 0.1.0 doctor
 ✓ trading: orders can be placed on demo
 ```
 
+Each check is marked ✓ (passed), ✗ (failed or missing), ⚠ (a warning) or · (skipped). `--json` prints
+`{ version, ok, checks }` instead, where each check is `{ name, status, detail }`, for scripts.
+
+## The account, positions and orders
+
+```sh
+npx trading212 summary --env-file .env
+npx trading212 positions
+npx trading212 orders --json
+```
+
+```
+Ticker      Quantity  Average price   Price   Value  Profit
+AAPL_US_EQ       2.5         230.00  230.00  575.00    0.00
+```
+
+`summary` shows the account's cash, value and profit, `positions` the open positions, and `orders` the orders still
+working. With `--json`, each prints exactly what Trading 212 returned, for scripts. They use a client with trading
+off, so they cannot trade even on demo.
+
 ## Usage
 
 ```
@@ -29,28 +53,29 @@ trading212 <command> [options]
 
 Commands:
   doctor            Check your API key, environment and permissions
+  summary           Show the account's cash, value and profit
+  positions         List open positions
+  orders            List pending orders
   version           Print the version
 
 Options:
-  --env <name>      demo or live (overrides T212_ENV)
+  --env <name>      demo or live (overrides T212_ENV; demo when neither is set)
   --env-file <path> Load variables from a file first, such as .env
   --json            Print the result as JSON
   -h, --help        Show this help
 ```
 
 It reads `T212_ENV`, `T212_API_KEY` and `T212_API_SECRET`, or `T212_DEMO_*` and `T212_LIVE_*`; see
-[Configuration](/Trading212.js/reference/configuration/#environment-variables). Variables already set in your shell
-win over the file, and the file never changes the process's environment.
+[Configuration](/Trading212.js/reference/configuration/#environment-variables). With neither `--env` nor `T212_ENV`,
+it uses demo. Variables already set in your shell win over the file, and the file never changes the process's
+environment. `T212_LOG=debug` writes the client's log lines to stderr, so `--json` output stays clean.
 
 With the package installed in a project, `npx trading212 doctor` runs the same command.
 
 ## Exit codes
 
-| Code | Means                                                                        |
-| ---- | ---------------------------------------------------------------------------- |
-| `0`  | The settings are valid and the key signs in, even if a permission is missing |
-| `1`  | The settings are wrong, or the key does not sign in                          |
-| `2`  | The command was used wrongly: no command, an unknown one, or a bad option    |
-
-Each check is marked ✓ (passed), ✗ (failed or missing), ⚠ (a warning) or · (skipped). `--json` prints
-`{ version, ok, checks }` instead, where each check is `{ name, status, detail }`, for scripts.
+| Code | Means                                                                     |
+| ---- | ------------------------------------------------------------------------- |
+| `0`  | It worked; for the doctor, even if a permission is missing                |
+| `1`  | The settings are wrong, the key does not sign in, or a read failed        |
+| `2`  | The command was used wrongly: no command, an unknown one, or a bad option |

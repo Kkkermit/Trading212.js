@@ -41,13 +41,14 @@ src/
 │   └── endpoints.generated.ts
 ├── errors/               classes, the response-to-error mapping, and every hint
 ├── logging/              logger adapters and the one redact()
-├── resources/            account, positions, instruments, exchanges, orders, history, reports, pies, portfolio
+├── resources/            account, positions, instruments, exchanges, orders, history, reports, pies, portfolio, watch
 ├── orders/               quantity maths and pre-send validation
 ├── pagination.ts         Page, PagedList, nextPagePath hardening
+├── watcher.ts            Watcher: polling, listeners, for await, and which errors stop it
 ├── cache.ts              CacheStore, MemoryCache, single-flight loading
 ├── testing/              ./testing entry: the fake server and scriptedFetch
 ├── csv/                  ./csv entry
-├── cli/                  the `trading212 doctor` command
+├── cli/                  the read-only `trading212` command: doctor, summary, positions, orders
 └── types/                generated API models and friendly aliases
 openapi/                  the vendored spec, SOURCE.md and overrides.json
 scripts/                  generateApi, fetchSpec, captureErrors, and the smoke tests
@@ -121,7 +122,10 @@ docs/                     the documentation site (Astro Starlight); pages are MD
   failures being bypassed, the live switch behind a custom `baseUrl`, unknown outcomes for unreadable successes and
   redirects, waiting calls rechecking a 429, aborts not crossing between callers of a shared download, the
   frozen endpoint table, success bodies kept intact by redaction, a 3xx with a broken body on a trade, a `null` cache
-  miss, invalid durations refused before sending, and `waitFor` asking only the history once an order has gone. Keep it true.
+  miss, invalid durations refused before sending, `waitFor` asking only the history once an order has gone,
+  `findAfterUnknown`'s time window, direction and history depth, the `maxOpenQuantity` check, `cancelAll` stopping when
+  trading is off, `onError` skipping expected 404s, watchers stopping on errors that need a person and when a loop
+  ends, and the CLI's client having trading off with logs on stderr. Keep it true.
 - Name the behaviour, not the implementation. A one-line `/** */` above a test says which bug it pins.
 - Prefer the fake server for behaviour and `scriptedFetch` for exact HTTP.
 - Each test starts with empty rate-limit budgets (`tests/setup.ts`).

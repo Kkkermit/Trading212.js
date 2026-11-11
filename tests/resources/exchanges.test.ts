@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InstrumentNotFoundError } from "../../src/errors/errors";
+import { InstrumentNotFoundError, TimeoutError } from "../../src/errors/errors";
 import { sessionAt } from "../../src/resources/exchanges";
-import { createFakeTrading212 } from "../../src/testing";
+import { Trading212 } from "../../src/client";
+import { createFakeTrading212, FAKE_API_KEY, FAKE_API_SECRET } from "../../src/testing";
 
 import { scripted } from "../helpers";
 
@@ -95,5 +96,116 @@ describe("sessionAt during a break", () => {
 			session: "closed",
 			nextOpen: new Date("2026-11-09T12:30:00Z"),
 		});
+	});
+});
+
+describe("isOpen and waitUntilOpen", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	const HOUR = 3_600_000;
+	const at = (time: number): string => new Date(time).toISOString();
+	/** Closed now, pre-market in half an hour, regular hours in two. */
+	function closedMarket(now: number) {
+		return createFakeTrading212({
+			client: { metadataTtlMs: 24 * HOUR },
+			state: {
+				exchanges: [
+					{
+						id: 1,
+						name: "NASDAQ",
+						workingSchedules: [
+							{
+								id: 1,
+								timeEvents: [
+									{ type: "CLOSE", date: at(now - HOUR) },
+									{ type: "PRE_MARKET_OPEN", date: at(now + HOUR / 2) },
+									{ type: "OPEN", date: at(now + 2 * HOUR) },
+									{ type: "CLOSE", date: at(now + 8 * HOUR) },
+								],
+							},
+						],
+					},
+				],
+			},
+		});
+	}
+
+	it("says whether a market is open, counting extended hours only when asked", async () => {
+		vi.useFakeTimers({ now: new Date("2026-11-09T12:00:00Z") });
+		const { client } = closedMarket(Date.now());
+		expect(await client.exchanges.isOpen("AAPL_US_EQ")).toBe(false);
+		vi.setSystemTime(Date.now() + HOUR);
+		expect(await client.exchanges.isOpen("AAPL_US_EQ")).toBe(false);
+		expect(await client.exchanges.isOpen("AAPL_US_EQ", { extendedHours: true })).toBe(true);
+		vi.setSystemTime(Date.now() + 2 * HOUR);
+		expect(await client.exchanges.isOpen("AAPL_US_EQ")).toBe(true);
+	});
+
+	it("sleeps until the scheduled opening, then resolves with the market's status", async () => {
+		vi.useFakeTimers({ now: new Date("2026-11-09T12:00:00Z") });
+		const start = Date.now();
+		const { client, server } = closedMarket(start);
+		const checks = vi.spyOn(client.exchanges, "status");
+		const regular = client.exchanges.waitUntilOpen("AAPL_US_EQ");
+		const extended = client.exchanges.waitUntilOpen("AAPL_US_EQ", { extendedHours: true });
+		await vi.advanceTimersByTimeAsync(HOUR / 2);
+		expect(await extended).toMatchObject({ session: "preMarket", extendedHours: true });
+		await vi.advanceTimersByTimeAsync(HOUR + HOUR / 2);
+		expect(await regular).toMatchObject({ session: "regular", open: true, since: new Date(start + 2 * HOUR) });
+		// It sleeps until each opening rather than polling: a few checks and one download of each list in two hours.
+		expect(checks.mock.calls.length).toBeLessThanOrEqual(6);
+		expect(server.requests.map((request) => request.path.split("/").pop())).toEqual(["instruments", "exchanges"]);
+	});
+
+	it("gives up at once when the market opens after the timeout, and stops when the signal aborts", async () => {
+		vi.useFakeTimers({ now: new Date("2026-11-09T12:00:00Z") });
+		const { client } = closedMarket(Date.now());
+		await expect(client.exchanges.waitUntilOpen("AAPL_US_EQ", { timeoutMs: HOUR })).rejects.toThrow(
+			/opens at .*, after the 3600000 ms timeout/,
+		);
+		const controller = new AbortController();
+		const waiting = client.exchanges.waitUntilOpen("AAPL_US_EQ", { signal: controller.signal });
+		await vi.advanceTimersByTimeAsync(1000);
+		controller.abort(new Error("stopped"));
+		await expect(waiting).rejects.toThrow("stopped");
+	});
+
+	/** A slow check, such as one waiting for rate-limit budget, must not push the wake-up past the opening. */
+	it("wakes at the opening even when checking took a while", async () => {
+		vi.useFakeTimers({ now: new Date("2026-11-09T12:00:00Z") });
+		const start = Date.now();
+		const { server } = closedMarket(start);
+		let slow = true;
+		const client = new Trading212({
+			environment: "demo",
+			apiKey: FAKE_API_KEY,
+			apiSecret: FAKE_API_SECRET,
+			rateLimit: "off",
+			metadataTtlMs: 24 * HOUR,
+			fetch: async (input, init) => {
+				// The first request takes ten minutes.
+				if (slow) vi.setSystemTime(Date.now() + 10 * 60_000);
+				slow = false;
+				return server.fetch(input, init);
+			},
+		});
+		let openedAt = 0;
+		const opened = client.exchanges.waitUntilOpen("AAPL_US_EQ", { extendedHours: true }).then(() => {
+			openedAt = Date.now();
+		});
+		await vi.advanceTimersByTimeAsync(HOUR / 2);
+		await opened;
+		expect(openedAt - start).toBe(HOUR / 2);
+	});
+
+	it("keeps checking when the schedule does not say, until its timeout", async () => {
+		vi.useFakeTimers({ now: new Date("2026-11-09T12:00:00Z") });
+		const { client } = createFakeTrading212({ state: { exchanges: [] } });
+		const waiting = client.exchanges.waitUntilOpen("AAPL_US_EQ", { timeoutMs: 3 * HOUR });
+		const settled = expect(waiting).rejects.toBeInstanceOf(TimeoutError);
+		await vi.advanceTimersByTimeAsync(3 * HOUR);
+		await settled;
 	});
 });

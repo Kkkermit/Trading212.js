@@ -2,6 +2,7 @@ import type { Environment } from "../environment";
 import {
 	isTrading212Error,
 	NetworkError,
+	NotFoundError,
 	OrderOutcomeUnknownError,
 	RateLimitError,
 	type RequestDescription,
@@ -47,12 +48,19 @@ export interface RateLimitWaitEvent {
 	readonly waitMs: number;
 }
 
+export interface RequestErrorEvent extends RequestEvent {
+	/** The error the call throws, after any retries. `attempt` is the one it failed on, or 0 when none was started. */
+	readonly error: Trading212Error;
+}
+
 /** Callbacks for metrics and tracing. They receive no credentials, and an exception in one is ignored. */
 export interface Hooks {
 	onRequest?(event: RequestEvent): void;
 	onResponse?(event: ResponseEvent): void;
 	onRetry?(event: RetryEvent): void;
 	onRateLimitWait?(event: RateLimitWaitEvent): void;
+	/** Once for every request that fails, with the error it throws, so failures can be reported from one place. */
+	onError?(event: RequestErrorEvent): void;
 }
 
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
@@ -90,6 +98,15 @@ interface RequestOptions extends CallOptions {
 	body?: unknown;
 	/** The endpoint always answers with a body, so an empty success is an error. */
 	expectBody?: boolean;
+	/** The caller treats a 404 as an answer, so it is not reported to `onError`. */
+	expectNotFound?: boolean;
+}
+
+/** A request that has been handed to `fetch`, as an `OrderOutcomeUnknownError` describes it. */
+interface SentRequest {
+	readonly request: RequestDescription;
+	readonly sent: unknown;
+	readonly sentAt: number;
 }
 
 interface TransportResponse<T> {
@@ -180,7 +197,25 @@ export class Transport {
 	}
 
 	async request<T>(endpoint: EndpointDefinition, given: RequestOptions = {}): Promise<TransportResponse<T>> {
+		const progress = { path: endpoint.path, attempt: 0 };
+		try {
+			return await this.#send<T>(endpoint, given, progress);
+		} catch (error) {
+			if (isTrading212Error(error) && !(given.expectNotFound && error instanceof NotFoundError)) {
+				const event: RequestErrorEvent = { endpoint: endpoint.id, method: endpoint.method, ...progress, error };
+				this.#hook(() => this.#config.hooks.onError?.(event));
+			}
+			throw error;
+		}
+	}
+
+	async #send<T>(
+		endpoint: EndpointDefinition,
+		given: RequestOptions,
+		progress: { path: string; attempt: number },
+	): Promise<TransportResponse<T>> {
 		const { url, ...description } = this.describe(endpoint, given);
+		progress.path = description.path;
 		const config = this.#config;
 		const options = { ...given, timeoutMs: durationOption(given.timeoutMs, "timeoutMs") ?? config.timeoutMs };
 		if (endpoint.kind === "trade" && !this.tradingEnabled) {
@@ -197,6 +232,7 @@ export class Transport {
 		}
 		const maxAttempts = endpoint.kind === "read" && config.retry ? config.retry.maxAttempts : 1;
 		for (let attempt = 1; ; attempt++) {
+			progress.attempt = attempt;
 			try {
 				return await this.#attempt<T>(endpoint, url, description, options, attempt);
 			} catch (error) {
@@ -320,6 +356,7 @@ export class Transport {
 		config.logger[level](`Sending ${description.method} ${description.path}`, { endpoint: endpoint.id, attempt });
 		this.#hook(() => config.hooks.onRequest?.(event));
 		const started = Date.now();
+		const sent = { request: description, sent: options.body, sentAt: started };
 
 		let response: Response;
 		let text: string;
@@ -332,7 +369,7 @@ export class Transport {
 				redirect: "manual",
 			});
 		} catch (error) {
-			throw this.#requestFailure(error, endpoint, description, options, timeout, timeoutMs, true);
+			throw this.#requestFailure(error, endpoint, sent, options, timeout, timeoutMs, true);
 		}
 
 		const rateLimit = parseRateLimitHeaders(response.headers);
@@ -345,7 +382,7 @@ export class Transport {
 		} catch (error) {
 			// Once Trading 212 has answered, only a client error proves a trade did not run.
 			const mayHaveRun = response.status < 400 || response.status === 408 || response.status >= 500;
-			throw this.#requestFailure(error, endpoint, description, options, timeout, timeoutMs, mayHaveRun);
+			throw this.#requestFailure(error, endpoint, sent, options, timeout, timeoutMs, mayHaveRun);
 		}
 
 		const durationMs = Date.now() - started;
@@ -361,7 +398,7 @@ export class Transport {
 			const message = `${description.method} ${description.path} answered with a redirect, which is never followed with your credentials.`;
 			const details = { status: response.status, request: description, ...(rateLimit && { rateLimit }) };
 			if (endpoint.kind === "trade") {
-				throw new OrderOutcomeUnknownError(message, { ...details, sent: options.body, hint: HINTS.outcomeUnknown });
+				throw new OrderOutcomeUnknownError(message, { ...details, ...sent, hint: HINTS.outcomeUnknown });
 			}
 			throw new UnexpectedResponseError(message, details);
 		}
@@ -377,12 +414,13 @@ export class Transport {
 				environment: config.environment,
 				rateLimit,
 				sent: options.body,
+				sentAt: started,
 				now: Date.now(),
 			});
 		}
 
 		return {
-			data: this.#parse(text, endpoint, description, options, response.status) as T,
+			data: this.#parse(text, endpoint, sent, options, response.status) as T,
 			status: response.status,
 			rateLimit,
 		};
@@ -391,18 +429,18 @@ export class Transport {
 	#parse(
 		text: string,
 		endpoint: EndpointDefinition,
-		description: RequestDescription,
+		sent: SentRequest,
 		options: RequestOptions,
 		status: number,
 	): unknown {
+		const { request: description } = sent;
 		const where = `${description.method} ${description.path}`;
 		// A success Trading 212 cannot describe means the trade has very likely gone through.
 		const unreadable = (message: string, cause?: unknown): Error =>
 			endpoint.kind === "trade"
 				? new OrderOutcomeUnknownError(`${where} succeeded (${status}) but ${message}.`, {
+						...sent,
 						status,
-						request: description,
-						sent: options.body,
 						body: this.#config.redact(text.slice(0, 2000)),
 						hint: HINTS.outcomeUnknown,
 						cause,
@@ -427,19 +465,19 @@ export class Transport {
 	#requestFailure(
 		error: unknown,
 		endpoint: EndpointDefinition,
-		description: RequestDescription,
+		sent: SentRequest,
 		options: RequestOptions,
 		timeout: AbortSignal,
 		timeoutMs: number,
 		mayHaveRun: boolean,
 	): Error {
+		const { request: description } = sent;
 		const trade = endpoint.kind === "trade";
 		const where = `${description.method} ${description.path}`;
 		if (options.signal?.aborted) {
 			if (trade && mayHaveRun) {
 				return new OrderOutcomeUnknownError(`${where} was aborted after it was sent.`, {
-					request: description,
-					sent: options.body,
+					...sent,
 					hint: HINTS.outcomeUnknown,
 					cause: options.signal.reason,
 				});
@@ -449,8 +487,7 @@ export class Transport {
 		if (timeout.aborted) {
 			if (trade && mayHaveRun) {
 				return new OrderOutcomeUnknownError(`${where} did not answer within ${timeoutMs} ms.`, {
-					request: description,
-					sent: options.body,
+					...sent,
 					hint: HINTS.outcomeUnknown,
 				});
 			}
@@ -460,20 +497,19 @@ export class Transport {
 			});
 		}
 		const code = errorCode(error);
-		const sent = !(code !== undefined && NOT_SENT.has(code));
-		if (trade && sent && mayHaveRun) {
+		const reached = !(code !== undefined && NOT_SENT.has(code));
+		if (trade && reached && mayHaveRun) {
 			return new OrderOutcomeUnknownError(`${where} lost its connection${code ? ` (${code})` : ""}.`, {
-				request: description,
-				sent: options.body,
+				...sent,
 				hint: HINTS.outcomeUnknown,
 				cause: error,
 			});
 		}
-		const failure = sent ? "the connection broke" : "could not connect";
+		const failure = reached ? "the connection broke" : "could not connect";
 		return new NetworkError(`${where} failed: ${failure}${code ? ` (${code})` : ""}.`, {
 			request: description,
-			sent,
-			hint: HINTS.network(sent, endpoint.kind),
+			sent: reached,
+			hint: HINTS.network(reached, endpoint.kind),
 			cause: error,
 		});
 	}

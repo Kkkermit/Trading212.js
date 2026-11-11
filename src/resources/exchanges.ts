@@ -1,6 +1,8 @@
 import { isList } from "../cache";
-import { InstrumentNotFoundError } from "../errors/errors";
+import { InstrumentNotFoundError, TimeoutError } from "../errors/errors";
 import { ENDPOINTS } from "../http/endpoints.generated";
+import { durationOption } from "../internal/duration";
+import { sleep } from "../internal/sleep";
 import type { Exchange, TimeEvent, TradableInstrument } from "../types/api.generated";
 
 import type { ResourceContext } from "./context";
@@ -25,6 +27,22 @@ export interface MarketStatus {
 	/** When regular trading next starts, including the end of a break, if the schedule reaches that far. */
 	readonly nextOpen: Date | undefined;
 }
+
+export interface OpenOptions extends ListOptions {
+	/** Count pre-market, after-hours and overnight sessions as open. Default false: regular hours only. */
+	extendedHours?: boolean;
+}
+
+export interface WaitUntilOpenOptions extends OpenOptions {
+	/** Give up with a `TimeoutError` after this long, or straight away if the market opens later. Default: no limit. */
+	timeoutMs?: number;
+}
+
+// Long waits are taken in steps, so a schedule that changes or a timer limit cannot leave the wait stuck.
+const MAX_SLEEP_MS = 60 * 60_000;
+
+const isOpenIn = (status: MarketStatus, extendedHours: boolean | undefined): boolean =>
+	status.open || (extendedHours === true && status.extendedHours);
 
 const SESSION_AFTER: Record<string, MarketSession> = {
 	OPEN: "regular",
@@ -144,5 +162,51 @@ export class ExchangesResource {
 			next: undefined,
 			nextOpen: undefined,
 		};
+	}
+
+	/**
+	 * Whether an instrument's market is open now: regular hours, or any session with `{ extendedHours: true }`.
+	 *
+	 * @example
+	 * if (await t212.exchanges.isOpen("AAPL_US_EQ")) await t212.orders.buy({ ticker: "AAPL_US_EQ", quantity: 1 });
+	 */
+	async isOpen(ticker: string | TradableInstrument, options: OpenOptions = {}): Promise<boolean> {
+		const { extendedHours, ...list } = options;
+		return isOpenIn(await this.status(ticker, new Date(), list), extendedHours);
+	}
+
+	/**
+	 * Resolves with the market's status once it opens, straight away if it is open now. It sleeps until the opening
+	 * the schedule gives rather than polling, and checks again when it wakes, so a changed schedule is followed.
+	 *
+	 * @example
+	 * await t212.exchanges.waitUntilOpen("AAPL_US_EQ", { timeoutMs: 12 * 60 * 60_000 });
+	 */
+	async waitUntilOpen(ticker: string | TradableInstrument, options: WaitUntilOpenOptions = {}): Promise<MarketStatus> {
+		const { extendedHours, timeoutMs: given, ...list } = options;
+		const timeoutMs = durationOption(given, "timeoutMs");
+		const deadline = timeoutMs === undefined ? Number.POSITIVE_INFINITY : Date.now() + timeoutMs;
+		for (;;) {
+			const status = await this.status(ticker, new Date(), list);
+			if (isOpenIn(status, extendedHours)) return status;
+			// Read after the check, which can wait for rate-limit budget, so the sleep does not overshoot the opening.
+			const now = Date.now();
+			const opens = (extendedHours ? status.next?.at : undefined) ?? status.nextOpen;
+			if (opens && opens.getTime() > deadline) {
+				throw new TimeoutError(
+					`${status.ticker} opens at ${opens.toISOString()}, after the ${timeoutMs ?? 0} ms timeout.`,
+					{
+						hint: "Wait longer, or check exchanges.status() for the schedule.",
+					},
+				);
+			}
+			if (now >= deadline) {
+				throw new TimeoutError(`${status.ticker} did not open within ${timeoutMs ?? 0} ms.`, {
+					hint: "Trading 212's schedule did not say when it opens next. Check exchanges.status() later.",
+				});
+			}
+			const untilOpen = opens ? opens.getTime() - now : MAX_SLEEP_MS;
+			await sleep(Math.min(untilOpen, MAX_SLEEP_MS, deadline - now), list.signal);
+		}
 	}
 }

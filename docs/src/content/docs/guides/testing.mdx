@@ -26,8 +26,9 @@ What it does:
 - **Limit and stop orders wait** until you call `server.fill(orderId, price?)`. Their cash or shares are reserved
   meanwhile.
 - **It refuses what Trading 212 refuses:** not enough cash, selling more than is available, more than 4 decimal
-  places, `extendedHours` on a non-market order, an unknown ticker, a closed market (`server.marketOpen = false`) and
-  the wrong key.
+  places, more than the instrument's `maxOpenQuantity`, an order worth less than `minOrderValue` (1 by default),
+  `extendedHours` on a non-market order, an unknown ticker, a closed market (`server.marketOpen = false`) and the
+  wrong key.
 - **History is paginated** with `nextPagePath`, like the real API.
 - **CSV exports are refused on demo.** Use `environment: "live"` or `server.exportsOnDemo = true` to test them. It
   checks that your code sends no credentials to the download link.
